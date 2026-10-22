@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.5) (preloaded format=pdflatex 2026.9.30)  19 OCT 2026 15:18
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.5) (preloaded format=pdflatex 2026.9.30)  22 OCT 2026 21:49
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -978,42 +978,36 @@ LaTeX Font Info:    Trying to load font information for U+stmry on input line 7
 d) [1
 
 {C:/Users/RawlePrince/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
-[2]
-Underfull \hbox (badness 10000) in paragraph at lines 210--210
-[][][]\T1/cmr/m/n/9 Note, the orig-nal work can be found here: []$\T1/cmtt/m/n/
-9 https : / / github . com / rawlep /
- []
-
-[3]
+[2] [3]
 LaTeX Font Info:    Font shape `T1/cmtt/bx/n' in size <10> not available
-(Font)              Font shape `T1/cmtt/m/n' tried instead on input line 273.
- [4] [5] [6] [7] [8] [9]
-Overfull \hbox (1.19133pt too wide) in paragraph at lines 757--777
+(Font)              Font shape `T1/cmtt/m/n' tried instead on input line 269.
+ [4] [5] [6] [7] [8] [9] [10] [11]
+Overfull \hbox (1.19133pt too wide) in paragraph at lines 869--889
  [][] 
  []
 
-[10] [11] [12] [13]
+[12] [13] [14]
 LaTeX Font Info:    Font shape `T1/cmtt/bx/n' in size <10.95> not available
-(Font)              Font shape `T1/cmtt/m/n' tried instead on input line 1068.
- [14] [15] [16] [17] [18] [19] [20] [21]
-Underfull \hbox (badness 4713) in paragraph at lines 1538--1539
+(Font)              Font shape `T1/cmtt/m/n' tried instead on input line 1179.
+ [15] [16] [17] [18] [19] [20] [21] [22] [23]
+Underfull \hbox (badness 4713) in paragraph at lines 1647--1648
 []\T1/cmr/m/n/10 D. I. Spi-vak. Poly: an abun-dant cat-e-gor-i-cal set-ting for
  mode-dependent dy-nam-ics.
  []
 
-[22] [23] (aapf2.aux)
+[24] (aapf2.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-09-09>
  ***********
 Package rerunfilecheck Info: File `aapf2.out' has not changed.
-(rerunfilecheck)             Checksum: AECEB86E4D28F3402DE62DABE3532A37;5949.
+(rerunfilecheck)             Checksum: 583D37A76F57334911DEC33AE5E15CCE;6165.
  ) 
 Here is how much of TeX's memory you used:
- 27836 strings out of 467392
- 516425 string characters out of 5402723
- 1088664 words of memory out of 5000000
- 56532 multiletter control sequences out of 15000+600000
+ 27959 strings out of 467392
+ 517876 string characters out of 5402723
+ 1102038 words of memory out of 5000000
+ 56649 multiletter control sequences out of 15000+600000
  662317 words of font info for 132 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  102i,15n,107p,1004b,2011s stack positions out of 10000i,1000n,20000p,200000b,200000s
@@ -1047,33 +1041,34 @@ X/fonts/type1/public/amsfonts/cm/cmbx10.pfb><C:/Users/RawlePrince/AppData/Local
 /Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb><C:/Users/RawlePrinc
 e/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/U
 sers/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/c
-mmi7.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public
-/amsfonts/cm/cmmi8.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/font
-s/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/RawlePrince/AppData/Local/Progra
-ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/RawlePrince/AppDat
-a/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr6.pfb><C:/Users/Rawle
-Prince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C
-:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/c
-m/cmr8.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/publ
-ic/amsfonts/cm/cmr9.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fon
-ts/type1/public/amsfonts/cm/cmss10.pfb><C:/Users/RawlePrince/AppData/Local/Prog
-rams/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/RawlePrince/App
-Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy6.pfb><C:/Users/R
-awlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.p
+mmi6.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public
+/amsfonts/cm/cmmi7.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/font
+s/type1/public/amsfonts/cm/cmmi8.pfb><C:/Users/RawlePrince/AppData/Local/Progra
+ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/RawlePrince/AppDat
+a/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/Rawl
+ePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr6.pfb><
+C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/
+cm/cmr7.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/pub
+lic/amsfonts/cm/cmr8.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fo
+nts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/RawlePrince/AppData/Local/Progr
+ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmss10.pfb><C:/Users/RawlePrince/AppD
+ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/R
+awlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy6.p
 fb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfo
-nts/cm/cmsy8.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type
-1/public/amsfonts/cm/cmsy9.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiK
-TeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/RawlePrince/AppData/Loc
-al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti7.pfb><C:/Users/RawlePrin
-ce/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti8.pfb><C:/U
+nts/cm/cmsy7.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type
+1/public/amsfonts/cm/cmsy8.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiK
+TeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/RawlePrince/AppData/Loca
+l/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/RawlePrin
+ce/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti7.pfb><C:/U
 sers/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/c
-mti9.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public
-/amsfonts/symbols/msam10.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTe
-X/fonts/type1/public/amsfonts/symbols/msbm10.pfb><C:/Users/RawlePrince/AppData/
-Local/Programs/MiKTeX/fonts/type1/public/hoekwater/stmary10.pfb>
-Output written on aapf2.pdf (23 pages, 665857 bytes).
+mti8.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/fonts/type1/public
+/amsfonts/cm/cmti9.pfb><C:/Users/RawlePrince/AppData/Local/Programs/MiKTeX/font
+s/type1/public/amsfonts/symbols/msam10.pfb><C:/Users/RawlePrince/AppData/Local/
+Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb><C:/Users/RawleP
+rince/AppData/Local/Programs/MiKTeX/fonts/type1/public/hoekwater/stmary10.pfb>
+Output written on aapf2.pdf (24 pages, 688397 bytes).
 PDF statistics:
- 1554 PDF objects out of 1728 (max. 8388607)
- 205 named destinations out of 1000 (max. 500000)
- 253 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 1586 PDF objects out of 1728 (max. 8388607)
+ 211 named destinations out of 1000 (max. 500000)
+ 261 words of extra memory for PDF output out of 10000 (max. 10000000)
 

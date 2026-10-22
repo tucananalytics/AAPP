@@ -65,10 +65,10 @@
 \title{Arithmetic Analysis of Polymorphic Programs\\
   \large and the Verification of Typed Agent Interfaces}
 \author{Rawle Prince\thanks{Tucan Analytics Ltd, London, United Kingdom.
-    \texttt{rawle.prince@tucan-analytics.com}. The original version of this work was carried out
-    while the author held a departmentally funded research studentship in the School of
-    Computer Science, University of Nottingham, between 10/2006 and 09/2010.}}
-\date{Revised version, October 2026}
+    \texttt{rawle.prince@tucan-analytics.com}. The arithmetic part of this work originates in the
+    author's doctoral research, supported by a departmentally funded studentship in the School of
+    Computer Science, University of Nottingham (2006--2010).}}
+\date{October 2026}
 
 \begin{document}
 \maketitle
@@ -88,8 +88,8 @@ The procedure is implemented as a Coq tactic that discharges the standard identi
 between list functions (reversal, appending, taking, dropping, rotation, \ldots) without
 induction, each in a fraction of a second.
 
-We also develop a second reading of the same mathematics.  
-A container is also the type of an \emph{interface}: the moves an agent can emit and, for each move,
+We then develop a second reading of the same mathematics.  A container is also the type
+of an \emph{interface}: the moves an agent can emit and, for each move,
 the responses it accepts.  Container morphisms are then \emph{adapters} between
 interfaces (dependent lenses), and the composition of adapters is the composition of
 container morphisms.  Interfaces whose shape is a count --- batches of tool calls,
@@ -204,24 +204,20 @@ invariants of sliding context windows and of fan-out/fan-in routing; just as use
 the procedure \emph{refutes} two plausible-looking adapter laws, exhibiting the
 counterexamples.
 
-\subsection{What is new since the original vesion}
+\subsection{Relation to earlier work}
 
-The arithmetic core (\S\ref{sec:containers}--\S\ref{sec:arith}) is a thoroughly revised
-version of the original work \cite{Prince10}.\footnote{Note, the orignal work can be found here: \url{https://github.com/rawlep/ArithmeticAnaysisOfPolymorphicPrograms} and also appears in the \texttt{legacy} folder in the updated repository (\S\ref{sec:notation}).} 
-Beyond presentational changes, the mathematics has been tightened in three places: the
-decidability theorem now comes with a proof (Theorem~\ref{thm:decidable}); correctness of
-composition is stated and proved (Theorem~\ref{thm:comp}); and two definitions of the
-orignal Coq development that were found to be wrong (\fn{take} and the position map of
-$\app$) are corrected, with every property re-proved for the corrected definitions
-(\S\ref{sec:coq}).  The Coq development is a complete rewrite: it is self-contained,
-axiom-free, uses \coq{lia} in place of the deprecated \coq{omega}, and proves each
-identity of Figure~\ref{fig:properties} in at most a few hundred milliseconds, where the
-original code took between 6 and 75 seconds.  It also demomstrates how the container-style 
-definitions are connected with ordinary recursive definitions: \emph{transfer lemmas} 
-relate each morphism to the corresponding function of the Coq
-standard library, and standard theorems about ordinary lists are derived from the decision
-procedure without induction.  Sections~\ref{sec:agents} and~\ref{sec:agents-verif}, and
-most of \S\ref{sec:related}, are new.
+The arithmetic core (\S\ref{sec:containers}--\S\ref{sec:arith}) develops ideas first set
+out in the author's thesis \cite{Prince10} and, in dependently typed form, in
+\cite{PrinceGhaniMcBride08}.  Relative to those, the decidability theorem is given a proof
+(Theorem~\ref{thm:decidable}), correctness of composition is stated and proved
+(Theorem~\ref{thm:comp}), and the accompanying Coq development has been rewritten: it is
+self-contained, axiom-free, uses \coq{lia} in place of the deprecated \coq{omega}, proves
+each identity of Figure~\ref{fig:properties} in a fraction of a second, and connects the
+container-style definitions with ordinary recursive definitions through \emph{transfer
+lemmas}, from which standard theorems about lists follow without induction
+(\S\ref{sec:coq}).\footnote{The earlier Coq sources are kept in the \texttt{legacy} folder
+of the repository given in \S\ref{sec:notation}.}  The interface reading
+(\S\ref{sec:agents} and \S\ref{sec:agents-verif}) is new.
 
 \subsection{Notation and conventions}\label{sec:notation}
 
@@ -239,10 +235,10 @@ Cut-off subtraction on $\N$, written $n \monus m$ and equal to $0$ when $m \ge n
 the subtraction of Coq's \coq{nat}.  Lists are indexed from $0$ throughout.
 
 \paragraph{Accompanying development.}  All definitions and results marked
-\textsf{[Coq]} are formalised in the development (directory \texttt{theories/}) at
-\begin{center} % need to update this 
-  \url{https://github.com/tucananalytics/ArithmeticAnalysisOfPolymorphicProgramsAndTypedAgentInterfaces}
-\end{center}
+\textsf{[Coq]} are formalised in the development (directory \texttt{theories/}) at 
+%\begin{center} % need to update this 
+  \url{https://github.com/tucananalytics/AAPP}
+%\end{center}
 of which \S\ref{sec:coq} gives an overview.
 
 % ===========================================================================
@@ -265,10 +261,10 @@ $\tau$ by a length and a function that produces its elements:
 Thus $\Box(n, f)$ is the list $[f\,1, f\,2, \dots, f\,n]$, and functions on lists can
 often be written as arithmetic on $n$ and on the arguments of $f$.  The difficulty with
 this representation is that $\Box$ is not injective: the lists $\Box(2, f)$ and
-$\Box(2, f')$ are equal as soon as $f$ and $f'$ agree on $1$ and $2$, regardless of whatever they do
+$\Box(2, f')$ are equal as soon as $f$ and $f'$ agree on $1$ and $2$, whatever they do
 elsewhere, so a list has many representations and $f$ carries information that is never
 observed.  The cure is to restrict the domain of $f$ to the positions that exist, that is,
-to make its domain depend on $n$.  By the use of the finite type
+to make its domain depend on $n$.  Using the finite types
 \begin{lstlisting}
 Inductive Fin : nat -> Set :=
   | fz : forall n, Fin (S n)
@@ -465,7 +461,7 @@ Its rules are:
   \inferrule{a : A \\ \Phi : \forall a' : A.\, a \jmeq a' \to \fn{Type} \\ \phi : \Phi\,a\,\fn{refl}}
             {\forall a' : A.\, \forall q : a \jmeq a'.\, \Phi\,a'\,q}
 \end{mathpar}
-These should be read them as follows.  The formation rule says that $a \jmeq b$ is a proposition for
+These should be read as follows.  The formation rule says that $a \jmeq b$ is a proposition for
 \emph{any} $a$ and $b$, even of different types --- so it can be \emph{stated}.  The
 introduction rule says that the only way to \emph{prove} it is reflexivity, which requires
 the same object on both sides, and hence the same type.  The elimination rule says that
@@ -526,10 +522,24 @@ $\sum_{s:S} y^{P\,s}$.  Some examples:
   agent emits a batch of $n$ items and accepts a response \emph{per item}.  More generally
   a batch of typed requests is the container %$\List \circ (\fn{Req} \triangleleft \fn{Res})$,
  $(\mathbf{r} :  \fn{Req}^m \triangleleft \fn{Res}\,r_1 + \ldots + \fn{Res}\,r_m)$,
-  whose shape is isomorphic to a lists of requests and whose positions are the results determined by each request.
+  whose shapes are tuples of requests and whose positions are the result slots, each typed by its request.
 \item A \emph{context window} over a history is list-shaped too: the shape is the
   length of the history the agent exposes, and positions are the turns within it.
+\item A \emph{plan} is tree-shaped: a planner that decomposes a task into sub-tasks,
+  recursively, emits a tree whose leaves are the atomic sub-tasks, and expects a result
+  for each leaf.  Its interface is the container of trees (\S\ref{sec:trees}).
+\item An \emph{aggregator} that receives the batches of $k$ sub-agents and presents them
+  as one batch has an interface with $k$ counts for its shape; adapters out of it are the
+  arity-$k$ morphisms of \S\ref{sec:arith}, of which $\app$ is the simplest.
 \end{itemize}
+
+Interfaces compose.  If $I$ and $J$ are interfaces then so is their product (emit a move
+of each, accept a response to each), their sum (emit a move of one or the other), and
+their composite $I \circ J$ (emit an $I$-move whose positions are filled with $J$-moves);
+containers are closed under all of these \cite{AbbottAltenkirchGhani05}, and so are
+polynomial functors \cite{NiuSpivak24}.  
+%A batch of typed tool calls is the composite $\List \circ (\fn{Req} \triangleleft \fn{Res})$ of the 
+%batch interface with the tool-calling interface, which is the container displayed above.
 
 The extension $\ext{I}\,X$ (Definition~\ref{def:extension}) has a natural reading as well:
 an element $(s, g)$ of $\ext{I}\,X$ is a move $s$ together with a \emph{continuation}
@@ -633,6 +643,108 @@ Theorem~\ref{thm:rep} is an equation between shape and position maps.  Nothing n
 known about the agent itself --- in particular nothing about the language model that may
 sit inside it.  We are, with Ghani \cite{GhaniPodcast26}, verifying the plumbing, not the
 engine.
+
+\begin{example}[A conversational agent and its window]\label{ex:conv-agent}
+  Let the state of an agent be its history $h : \List\,\fn{Turn}$, and let its interface be
+  the batch interface $(n : \N \triangleleft \Fin\,n)$ with positions read as turns.  The
+  agent $a$ exposes its whole history ($\fn{readout}\,h = |h|$, with the $i$-th position
+  carrying the $i$-th turn in the extension) and, on receiving a response at position $i$
+  --- say a correction to turn $i$ --- updates that turn and appends the exchange.  The
+  model that serves the agent accepts at most $k$ turns.  Rather than change the agent, we
+  wrap it: $\fn{wrap}\,\lastk\,a$ exposes $\min(|h|, k)$ turns, the most recent ones, and
+  routes a response at window position $i$ to history position $i + (|h| \monus k)$ ---
+  the correct turn.  The identities of \S\ref{sec:worked} then say, for instance, that an
+  implementation which stores only the last $k$ turns and one which stores everything and
+  windows on demand present the same interface and the same behaviour to the model,
+  whatever the agent does with corrections.
+\end{example}
+
+\subsection{Tree-shaped interfaces: plans and flattening}\label{sec:trees}
+
+Not every interface is list-shaped, and the most important non-list example in agentic
+systems is the \emph{plan}.  A planner decomposes a task into sub-tasks and those into
+sub-sub-tasks; the result is a tree whose leaves are the atomic actions to be carried out,
+and the planner expects one result per leaf.  As a container, the interface of such a
+planner is
+\[
+  \fn{Tree} \;=\; (s : \fn{TreeS} \triangleleft \fn{leaves}\,s),
+\]
+where $\fn{TreeS}$ is the type of tree skeletons (binary trees with no data, in the
+simplest case) and $\fn{leaves}\,s$ is the type of leaf positions of $s$.  Hierarchical
+delegation of this kind is studied in depth by Libkind and Spivak \cite{LibkindSpivak24},
+with polynomial functors as task--solution interfaces and lenses as delegations; here we
+need only one adapter out of it.
+
+The environment that executes the atomic actions --- a tool server, a pool of workers ---
+typically understands batches, not trees.  The adapter that mediates is \emph{flattening}:
+\[
+  \fn{flatten} = (\fn{Sum}, \fn{flat}) : \fn{Tree} \lens (\N \triangleleft \Fin),
+  \qquad
+  \fn{Sum}\,\fn{leaf} = 1,\quad \fn{Sum}\,(\fn{node}\,l\,r) = \fn{Sum}\,l + \fn{Sum}\,r,
+\]
+whose shape map counts the leaves and whose position map
+$\fn{flat}_s : \Fin(\fn{Sum}\,s) \to \fn{leaves}\,s$ sends the $i$-th slot of the batch to the
+$i$-th leaf in left-to-right order (Figure~\ref{fig:flatten}): if $i < \fn{Sum}\,l$ the
+slot belongs to the left subtree, otherwise slot $i - \fn{Sum}\,l$ of the right subtree.
+This is the container morphism \texttt{cflatten} of \cite[Listing~21]{Prince10}, and it
+has a property that matters for agents:
+
+\begin{proposition}\label{prop:flatten}
+  \textsf{[Coq: \coq{flatten}, \coq{flatten\_cartesian}, \coq{Sum\_not\_injective}]}
+  $\fn{flatten}$ is cartesian: for every skeleton $s$, $\fn{flat}_s$ is a bijection, with
+  inverse the left-to-right index of a leaf.  Its shape map $\fn{Sum}$ is not injective.
+\end{proposition}
+
+Read as an adapter, cartesianness says that wrapping a planner by $\fn{flatten}$ is
+\emph{lossless}: the environment sees a flat batch of $\fn{Sum}\,s$ actions, every result it
+returns is routed back to exactly one leaf, no leaf is left without a result and no result
+is delivered twice.  Non-injectivity of the shape map says that the environment learns
+nothing about the \emph{structure} of the plan --- two plans with the same number of leaves
+present the same batch --- which is as it should be: the plan is the planner's business.
+Cartesianness constrains positions, not shapes, and the distinction is exactly the one
+between data (which an adapter may not lose) and structure (which it may hide).
+
+Flattening also connects tree-shaped interfaces to the decision procedure.  By
+Proposition~\ref{prop:wrap}(ii), a list adapter $m$ applied after flattening is the single
+adapter $m \circ \fn{flatten}$ out of the tree interface, so a planner can be windowed,
+split across workers, or re-ordered using the adapters of \S\ref{sec:arith}, and the
+identities between those adapters --- decided by \coq{containers} --- hold of the planner
+too.  In the other direction, a tree adapter $t : \fn{Tree} \lens \fn{Tree}$ (re-balancing a
+plan, say) can be compared with a list adapter $m$ through the equation
+$\fn{flatten} \circ t = m \circ \fn{flatten}$, which asks whether re-arranging the plan
+has the same effect on the batch as $m$.  Since $\fn{flatten}$ is cartesian, an $m$
+satisfying the equation is determined by $t$ wherever one exists, and the equation is then
+decidable whenever that $m$ is Presburger.  Section~\ref{sec:conclusion} returns to this.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>={Stealth},font=\small,
+      lf/.style={circle,draw,minimum size=6mm,inner sep=0pt},
+      nd/.style={circle,draw,fill=black!10,minimum size=4mm,inner sep=0pt}]
+    \node[nd] (r) at (2,2.6) {};
+    \node[nd] (a) at (1,1.6) {};
+    \node[nd] (b) at (3,1.6) {};
+    \node[lf] (l0) at (0.4,0.6) {$\ell_0$};
+    \node[lf] (l1) at (1.6,0.6) {$\ell_1$};
+    \node[lf] (l2) at (2.4,0.6) {$\ell_2$};
+    \node[lf] (l3) at (3.6,0.6) {$\ell_3$};
+    \draw (r)--(a) (r)--(b) (a)--(l0) (a)--(l1) (b)--(l2) (b)--(l3);
+    \node[font=\footnotesize] at (2,3.2) {plan $s$ \quad ($\fn{Sum}\,s = 4$)};
+    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s0) at (7,0.6) {$0$};
+    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s1) at (7.8,0.6) {$1$};
+    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s2) at (8.6,0.6) {$2$};
+    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s3) at (9.4,0.6) {$3$};
+    \node[font=\footnotesize] at (8.2,1.5) {batch $\Fin\,4$};
+    \draw[->,black!60] (s0.north) to[out=120,in=20] node[pos=0.5,above,font=\scriptsize] {$\fn{flat}_s$} (l0.east);
+    \draw[->,black!60] (s1.north) to[out=125,in=15] (l1.east);
+    \draw[->,black!60] (s2.north) to[out=130,in=10] (l2.east);
+    \draw[->,black!60] (s3.north) to[out=135,in=5] (l3.east);
+    \node[font=\footnotesize,align=center] at (5.2,-0.3) {results flow back along $\fn{flat}_s$; the plan's shape is not visible on the right};
+  \end{tikzpicture}
+  \caption{Flattening as an adapter from a tree-shaped interface to the batch interface.
+    The position map sends batch slot $i$ to the $i$-th leaf; it is a bijection, so no
+    result is lost or duplicated.}\label{fig:flatten}
+\end{figure}
 
 \subsection{Borders and list-shaped interfaces}
 
@@ -934,9 +1046,8 @@ encoding), via the isomorphism $\Fin\,n_1 + \dots + \Fin\,n_k \cong \Fin(n_1 + \
     \lastk &= (\text{if } x_0 < k \text{ then } x_0 \text{ else } k,\; x_1 + (x_0 \monus k)).
   \end{align*}
   Observe that with the flat encoding the position map of $\fn{App}$ is the identity: output
-  position $i$ is input position $i$ of the concatenation.\footnote{The 2011 version of this paper
-  and its code gave a position map that subtracted $n$ in the second case, which double
-  counts the offset that the interpretation already applies; see \S\ref{sec:coq}.}
+  position $i$ is input position $i$ of the concatenation.\footnote{A position map that subtracts $n$ in the second case, as one might first
+  write, double counts the offset that the interpretation already applies; see \S\ref{sec:coq}.}
 \end{example}
 
 The \emph{interpretation} of $(u, g) : \mathsf{PPCm}$ of arity $k$ on inputs
@@ -1098,26 +1209,23 @@ Ltac containers := unfold_morphism; arith.
 Here \coq{unfold\_morphism} unfolds the definitions, splits the conjunction, evaluates the
 terms symbolically (rewriting with the correctness lemmas for substitution) and
 \coq{arith} eliminates every remaining conditional by case analysis and calls \coq{lia}.
-The \coq{optimiseOmega} pre-processing of the 2011 tactic, which discarded redundant
-hypotheses and performed ad hoc inequality reasoning to help \coq{omega}, is no longer
-needed.
+No pre-processing of the kind the earlier \coq{omega}-based tactic needed (discarding
+redundant hypotheses, ad hoc inequality reasoning) is required.
 
 \paragraph{\coq{Examples.v}.}  The representations of Example~\ref{ex:ppcm} and the
-properties of Figure~\ref{fig:properties}, each proved by \coq{containers}.  Two
-definitions of the 2011 code were found, in preparing this revision, to be wrong:
-\coq{take1} had shape map $\max(n,m)$ rather than $\min(n,m)$ (a swapped conditional), and
-\coq{appn1}'s position map did not follow the flat encoding of the interpretation.  The
-2011 lemmas about them were therefore theorems about the wrong functions.  Both are
-corrected, the properties are re-proved, and each basic morphism is now validated against
-the standard library by a \emph{transfer lemma}, e.g.
+properties of Figure~\ref{fig:properties}, each proved by \coq{containers}.  A
+representation is only as good as its agreement with the function it is meant to
+represent --- the earlier development contained a \fn{take} whose shape map was
+$\max(n,m)$ rather than $\min(n,m)$, a swapped conditional that no property in
+Figure~\ref{fig:properties} detects --- so each basic morphism is validated against the
+standard library by a \emph{transfer lemma}, e.g.
 \begin{lstlisting}
 Lemma Take_spec : forall m (l : list X),
     RepEq (interp (Take m) [of_list d l] d) (of_list d (firstn m l)).
 \end{lstlisting}
 where \coq{of\_list} turns a list into a length-and-lookup pair and \coq{RepEq} is equality
-of length and of elements at every position.  These lemmas answer a question put by one of
-the referees: how hard is it to relate the container-style definitions to the usual
-recursive ones?  Each transfer lemma is a short structural induction (between three and
+of length and of elements at every position.  How hard is it to relate the container-style
+definitions to the usual recursive ones?  Each transfer lemma is a short structural induction (between three and
 ten lines; \coq{Rev\_spec} uses the library lemma \coq{rev\_nth}), and it is done once per
 function, not once per property.  With the transfer lemmas in hand, theorems about
 ordinary lists follow from the decision procedure \emph{with no induction at all}: the
@@ -1127,23 +1235,22 @@ Theorem rev_involutive_via_containers : forall l : list X, rev (rev l) = l.
 Theorem firstn_skipn_via_containers : forall m (l : list X), firstn m l ++ skipn m l = l.
 \end{lstlisting}
 by chaining the transfer lemmas, Theorem~\ref{thm:comp}, Theorem~\ref{thm:sound} and the
-relevant \coq{pcmEQ}.  This is the ``two-tier'' methodology the referee suggested: one
-recursive definition per function for programming, one container representation per
-function for proving, connected once.
+relevant \coq{pcmEQ}.  This is a ``two-tier'' methodology: one recursive definition per
+function for programming, one container representation per function for proving,
+connected once.
 
 \paragraph{\coq{Containers.v}.}  Containers, extensions, morphisms, $\mmap$ with its
 functoriality, cartesian morphisms, agents, wrapping and runs, exactly as in
-\S\ref{sec:containers}--\ref{sec:agents}; and the bridge to the arithmetic
-representation described in \S\ref{sec:agents-verif}.
+\S\ref{sec:containers}--\ref{sec:agents}; the tree container and the proof that flattening
+is cartesian (\S\ref{sec:trees}); and the bridge to the arithmetic representation
+described in \S\ref{sec:agents-verif}.
 
-\paragraph{Performance.}  Table~\ref{tab:perf} compares proof times.  The original development
-took 6\,s for $\rev \circ \rev = \fn{id}$ on the machine of \cite{Prince10}. % and one referee
-%measured 75\,s for one of the examples on a contemporary Intel i5 (and did not see it
-%finish in 30 minutes on an older machine).  
-The new development proves every property of
+\paragraph{Performance.}  Table~\ref{tab:perf} gives proof times.  For comparison, the
+\coq{omega}-based development of \cite{Prince10} took 6\,s for $\rev \circ \rev = \fn{id}$.
+The present development proves every property of
 Figure~\ref{fig:properties} in at most 0.2\,s (all but one in under 40\,ms), and the most expensive statement in the
 development (the sliding-window invariant of \S\ref{sec:agents-verif}, which composes an
-arity-2 morphism) in 0.43\,s.  Three things account for the difference: \coq{lia}
+arity-2 morphism) in 0.43\,s.  Three things account for the speed: \coq{lia}
 (Micromega) replaces \coq{omega}, which was deprecated in Coq 8.12 and removed in 8.14;
 the non-dependent, nat-indexed terms give \coq{lia} small goals with few atoms; and the
 universal form of the statements (Theorem~\ref{thm:decidable}) puts them in the
@@ -1153,20 +1260,19 @@ quantifier-free fragment for which these procedures are designed.
   \centering\small
   \begin{tabular}{@{}lrr@{}}
     \toprule
-    Statement & 2011 code  & this version \\ %& 2014 referee
+    Statement & \cite{Prince10} & this version \\
     \midrule
-    $\rev\,(\rev\,xs) = xs$  & 6\,s & 0.02\,s \\ %& 6\,s
-    $\fn{take}_n\,(\fn{drop}_m\,xs) = \fn{drop}_m\,(\fn{take}_{n+m}\,xs)$  & --- & 0.02\,s \\ %& ---
+    $\rev\,(\rev\,xs) = xs$  & 6\,s & 0.02\,s \\
+    $\fn{take}_n\,(\fn{drop}_m\,xs) = \fn{drop}_m\,(\fn{take}_{n+m}\,xs)$  & --- & 0.02\,s \\
     $\fn{head}\,(\rev\,(\fn{rot}\,xs)) = \fn{head}\,xs$ & --- & 0.04\,s \\ %& --- 
-    $\rev\,(xs \app ys) = \rev\,ys \app \rev\,xs$ & not provable$^\dagger$  & 0.18\,s \\ %& ---
-    $\fn{take}_m\,b \app \fn{drop}_m\,b = b$  & --- & 0.06\,s \\ %& ---
-    $\lastk\,(h \app t) = \lastk\,(\lastk\,h \app t)$  & --- & 0.43\,s \\ %& ---
-   % ``one of the enclosed examples'' & --- & 75\,s & $\le 0.43$\,s \\
+    $\rev\,(xs \app ys) = \rev\,ys \app \rev\,xs$ & not provable$^\dagger$  & 0.18\,s \\
+    $\fn{take}_m\,b \app \fn{drop}_m\,b = b$  & --- & 0.06\,s \\
+    $\lastk\,(h \app t) = \lastk\,(\lastk\,h \app t)$  & --- & 0.43\,s \\
     \bottomrule
   \end{tabular}
-  \caption{Time taken by the tactic (Coq 8.18, Intel Xeon 2.1\,GHz).  The 2011 figure is
-    from \cite[\S6.3.2]{Prince10} (Intel E5200).  $^\dagger$The 2011 code could not state this property, lacking the
-    composition $\fn{comp}_2$.}\label{tab:perf}
+  \caption{Time taken by the tactic (Coq 8.18, Intel Xeon 2.1\,GHz).  The figure for
+    \cite{Prince10} is from its \S6.3.2 (Intel E5200).  $^\dagger$Not expressible in the
+    development of \cite{Prince10}, which lacked the composition $\fn{comp}_2$.}\label{tab:perf}
 \end{table}
 
 \paragraph{Limitations.}  The procedure handles polymorphic functions
@@ -1212,7 +1318,6 @@ hand-written state machine --- the two adapters make it indistinguishable to its
 environment.
 
 \subsection{Losslessness}
-
 An adapter that drops or duplicates responses is sometimes intended ($\lastk$ must drop
 old turns) and sometimes a bug (a fan-in that loses a tool result).  Either way it is a
 fact worth knowing, and for governance and auditability it is a fact worth
@@ -1268,6 +1373,15 @@ $\fn{comp}_2\,\fn{App}\,\fn{Take}_m\,\fn{Drop}_m$ and $\fn{id}$
 with Proposition~\ref{prop:wrap}(ii) this scales: a tree of splits and merges is a
 composite of adapters, and its equality to the identity is one \coq{pcmEQ}.
 
+\paragraph{Hierarchical planners.}  A planner on the tree interface of
+\S\ref{sec:trees}, wrapped by $\fn{flatten}$, is an agent on the batch interface, and the
+results above apply to it unchanged.  In particular, a plan with $n$ leaves dispatched to
+two worker pools by splitting at $m$ and reassembled has, by \coq{split\_merge} and
+Proposition~\ref{prop:wrap}(ii), the adapter $\fn{flatten}$ itself, so each leaf receives
+exactly its own result; and because $\fn{flatten}$ is cartesian
+(Proposition~\ref{prop:flatten}) the whole pipeline from plan to pooled results is
+lossless.  The development packages the first step as \coq{flat\_planner}.
+
 \paragraph{Reorderings.}  The identities of Figure~\ref{fig:properties} read, in the
 agent setting, as facts about rankings and histories: ``the top candidate of the reversed
 ranking is the bottom candidate of the original'' ($\fn{head} \circ \rev = \fn{last}$),
@@ -1278,7 +1392,7 @@ back changes nothing'' ($\fn{unrot} \circ \fn{rot} = \fn{id}$).
 
 It would be interesting to consider whether the translation from a recursive definition to its container
 representation could be automated. %, calling it a potential ``game changer''.
-Two developments since 2011 bear on this.  First, the thesis \cite[\S7.2.3]{Prince10} already
+Two observations bear on this.  First, the thesis \cite[\S7.2.3]{Prince10} already
 gives a \emph{semantic} translation: for any polymorphic $F : \forall X.\, \List\,X \to \List\,X$,
 Theorem~\ref{thm:rep} yields its container morphism, and $\reduce$ \eqref{eq:reduce}
 yields the shadow; what is not automatic is recognising the shadow as a piecewise-linear
@@ -1290,10 +1404,10 @@ representation $(u, g)$ of a function together with its transfer lemma, and the
 transfer lemma's proof (a short induction) and all subsequent properties (decided by
 \coq{containers}) are checked by Coq.  Ghani's remark that a language model is ``like a
 precocious PhD student'' who ``talks nonsense quite often'' \cite{GhaniPodcast26} is
-precisely the reason the checker must be a decision procedure and not another model.  
-%The referee's other concern, that index arithmetic is an unnatural way to program, is in this
-Correspondingly, the concern at the time the originaly work appeared that index arithmetic 
-is an unnatural way to program, is in this domain inverted: index arithmetic on histories and batches
+precisely the reason the checker must be a decision procedure and not another model.  A
+natural objection to the container style --- that index arithmetic is an unnatural way to
+program lists, closer to arrays in C than to lists in a functional language --- is in this
+domain inverted: index arithmetic on histories and batches
 (\texttt{history[-k:]}, \texttt{results[i]}) is how orchestration code is written today.
 What is missing is the proof that the arithmetic is right, which is what the procedure
 supplies.
@@ -1405,14 +1519,11 @@ of lengths; extending the term language so that $\fn{var}$ ranges over a vector 
 vectors is straightforward syntactically, but the resulting position maps need
 quantification over the inner index and may leave the universal fragment.  For other data
 types a promising starting point is the data types with a \emph{cartesian} morphism into
-lists.  The function that flattens a binary tree into a list is one: for each tree shape
-$s$ its position map $\Fin(\fn{Sum}\,s) \to \fn{nodes}\,s$ is a bijection, so no datum is
-lost or duplicated. % (One referee objected that flattening is not injective on trees, and
-%gave two binary search trees with different shapes and the same flattening; the
-%observation is correct, but it concerns the \emph{shape} map, which cartesianness does not
-%constrain.  A cartesian morphism may merge shapes; it may not lose positions.)  
-Through such a morphism, reindexing maps between trees may be representable as 
-reindexing maps between lists, and hence decided.
+lists, of which flattening (\S\ref{sec:trees}) is the paradigm.  Through such a morphism,
+reindexing maps between trees may be representable as reindexing maps between lists, and
+hence decided: an equation $m = m'$ between tree adapters whose position maps are
+determined by their flattenings would reduce to an equation between list adapters, and the
+question is for which classes of tree adapters this reduction is complete.
 
 \paragraph{Full Presburger arithmetic.}  Properties with existential content ---
 surjectivity of a position map, or the existence of a split point with some property ---
@@ -1441,11 +1552,9 @@ which most LLM-generated proofs are currently checked.
 
 \section*{Acknowledgements}
 
-I am grateful to Neil Ghani for suggesting, fifteen years after the fact, that this work
-be revisited in the light of agentic AI, and for the conversations that shaped
-\S\ref{sec:agents}; to Thorsten Altenkirch and Conor McBride for their part in the original
-work; and to the two anonymous referees of the 2011 submission, whose detailed reports
-are addressed point by point in the revision.
+I am grateful to Neil Ghani for suggesting that this work be revisited in the light of
+agentic AI and for the conversations that shaped \S\ref{sec:agents}, and to Thorsten
+Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arith} builds.
 %\todo{Rawle: journals increasingly require a statement on the use of AI tools in preparing
 %a manuscript; the revision was drafted with the assistance of an AI model and then
 %checked by the author --- decide whether and how to state this.}

@@ -210,3 +210,126 @@ Proof.
   split; [congruence |].
   intros i Hi. rewrite H2 by auto. rewrite H6 by congruence. rewrite <- H4 by congruence. auto.
 Qed.
+
+(** ** Tree-shaped interfaces and flattening
+
+    A planner emits a hierarchical plan -- a binary tree of sub-tasks -- and
+    accepts a result for each leaf.  Its interface is the container of binary
+    trees: shapes are tree skeletons and positions are leaves.  The function
+    that flattens a tree into a list (Listing 21 of the thesis) is a container
+    morphism from the tree interface to the list interface whose position maps
+    are bijections, i.e. a *cartesian*, lossless adapter: an environment that
+    only understands flat batches can serve a hierarchical planner, and every
+    result is routed back to exactly one leaf.  Its shape map is not
+    injective (different plans flatten to batches of the same size), which is
+    harmless: cartesianness constrains positions, not shapes. *)
+
+Inductive TreeS : Set :=
+| leaf : TreeS
+| node : TreeS -> TreeS -> TreeS.
+
+(** Positions of a skeleton: its leaves, addressed by left/right choices. *)
+Fixpoint TreeP (s : TreeS) : Type :=
+  match s with
+  | leaf => unit
+  | node l r => (TreeP l + TreeP r)%type
+  end.
+
+Definition TreeC : Container := mkCont TreeP.
+
+Fixpoint Sum (s : TreeS) : nat :=
+  match s with
+  | leaf => 1
+  | node l r => Sum l + Sum r
+  end.
+
+Lemma Fin_eq : forall n (a b : Fin n), proj1_sig a = proj1_sig b -> a = b.
+Proof.
+  intros n [i Hi] [j Hj] H; simpl in H; subst j. f_equal. apply le_unique.
+Qed.
+
+Lemma sub_lt_r : forall i (l r : TreeS), i < Sum (node l r) -> ~ i < Sum l -> i - Sum l < Sum r.
+Proof. intros; simpl in *; lia. Qed.
+
+(** Position map of flattening: output position [i] of the list is sent to
+    the [i]-th leaf in left-to-right order. *)
+Fixpoint flat_pos (s : TreeS) : Fin (Sum s) -> TreeP s :=
+  match s return Fin (Sum s) -> TreeP s with
+  | leaf => fun _ => tt
+  | node l r => fun i =>
+      match lt_dec (proj1_sig i) (Sum l) with
+      | left H => inl (flat_pos l (exist _ (proj1_sig i) H))
+      | right H => inr (flat_pos r (exist _ (proj1_sig i - Sum l)
+                                            (sub_lt_r l r (proj2_sig i) H)))
+      end
+  end.
+
+(** The inverse: the index of a leaf in left-to-right order. *)
+Fixpoint leaf_index (s : TreeS) : TreeP s -> nat :=
+  match s return TreeP s -> nat with
+  | leaf => fun _ => 0
+  | node l r => fun p =>
+      match p with
+      | inl pl => leaf_index l pl
+      | inr pr => Sum l + leaf_index r pr
+      end
+  end.
+
+Lemma leaf_index_lt : forall s (p : TreeP s), leaf_index s p < Sum s.
+Proof.
+  induction s as [| l IHl r IHr]; intros p; simpl.
+  - lia.
+  - destruct p as [pl | pr]; [specialize (IHl pl) | specialize (IHr pr)]; lia.
+Qed.
+
+Definition unflat_pos (s : TreeS) (p : TreeP s) : Fin (Sum s) :=
+  exist _ (leaf_index s p) (leaf_index_lt s p).
+
+(** [flatten : TreeC => ListC], the container morphism of Listing 21. *)
+Definition flatten : CMor TreeC ListC := mkMor TreeC ListC Sum flat_pos.
+
+Lemma flat_pos_index : forall s (i : Fin (Sum s)), leaf_index s (flat_pos s i) = proj1_sig i.
+Proof.
+  induction s as [| l IHl r IHr]; intros [i Hi]; simpl in *.
+  - lia.
+  - destruct (lt_dec i (Sum l)) as [H | H]; simpl.
+    + rewrite IHl; reflexivity.
+    + rewrite IHr; simpl; lia.
+Qed.
+
+Lemma flat_pos_ext : forall s (a b : Fin (Sum s)),
+    proj1_sig a = proj1_sig b -> flat_pos s a = flat_pos s b.
+Proof. intros s a b H. rewrite (Fin_eq a b H). reflexivity. Qed.
+
+Lemma index_flat_pos : forall s (p : TreeP s), flat_pos s (unflat_pos s p) = p.
+Proof.
+  induction s as [| l IHl r IHr]; intros p; simpl in *.
+  - destruct p; reflexivity.
+  - destruct p as [pl | pr]; unfold unflat_pos in *; simpl.
+    + destruct (lt_dec (leaf_index l pl) (Sum l)) as [H | H].
+      * f_equal. etransitivity; [apply flat_pos_ext with (b := unflat_pos l pl); reflexivity | apply IHl].
+      * exfalso; apply H; apply leaf_index_lt.
+    + destruct (lt_dec (Sum l + leaf_index r pr) (Sum l)) as [H | H]; [lia |].
+      f_equal. etransitivity; [apply flat_pos_ext with (b := unflat_pos r pr); simpl; lia | apply IHr].
+Qed.
+
+(** Flattening is a lossless (cartesian) adapter. *)
+Theorem flatten_cartesian : cartesian flatten.
+Proof.
+  intros s. exists (unflat_pos s). split.
+  - intros i. apply Fin_eq. simpl. apply flat_pos_index.
+  - intros p. apply index_flat_pos.
+Qed.
+
+(** ... although its shape map is not injective: two different plans may
+    flatten to batches of the same size. *)
+Example Sum_not_injective :
+  Sum (node leaf (node leaf leaf)) = Sum (node (node leaf leaf) leaf)
+  /\ node leaf (node leaf leaf) <> node (node leaf leaf) leaf.
+Proof. split; [reflexivity | discriminate]. Qed.
+
+(** Wrapping a planner by [flatten] presents it to the environment as an
+    agent on the list interface, to which the results of [Examples.v] apply;
+    by functoriality a list adapter [m] composed with [flatten] is again a
+    single adapter [ccomp m flatten] from the tree interface. *)
+Definition flat_planner (X : Type) (a : Agent TreeC X) : Agent ListC X := wrap flatten a.
