@@ -1,68 +1,91 @@
-# Arithmetic Analysis of Polymorphic Programs — accompanying development (2026 revision)
+# Arithmetic Analysis of Polymorphic Programs and the Verification of Typed Agent Interfaces
 
-Accompanying code for
+Coq development accompanying the paper
 
-> R. Prince, *Arithmetic Analysis of Polymorphic Programs and Typed Agent Interfaces*,
-> revised submission to Fundamenta Informaticae (original submission 2011, ref. 2014-3-Prince).
+> R. Prince, *Arithmetic Analysis of Polymorphic Programs and the Verification of
+> Typed Agent Interfaces* (`article/aapf2.pdf`).
 
-The development is a complete rewrite of the 2011 Coq code for modern Coq/Rocq.
-It is self-contained (no dependence on the old finite-type libraries), axiom-free,
-and every theorem of Figure 4 of the paper is discharged by a single tactic in
-a fraction of a second.
+Polymorphic functions between lists are represented, via the theory of containers,
+by a map on lengths and a map on indices.  When both are piecewise linear, equality
+of two such functions is a universal sentence of Presburger arithmetic, and it is
+proved here by a single tactic, `containers`, without induction.  The same objects
+are then read as *adapters* between typed agent interfaces, and arithmetic equality
+of adapters is shown to imply equality of the behaviour of every agent wrapped by
+them.
 
-## Requirements
+The development is self-contained, uses only the standard library, and contains no
+axioms and no admitted lemmas.
 
-* Coq 8.18 or later, or the Rocq Prover 9.x (uses only the standard library:
-  `Arith`, `Lia`, `List`).
-* `make` (uses `coq_makefile`).
+## Building
+
+Requirements: Coq 8.18 or later, or the Rocq Prover 9.x, and `make`.
 
 ```
-make            # builds theories/*.v
+make            # compiles theories/*.v  (about five seconds)
+make clean
 ```
 
-Tested with Coq 8.18.0.
+The makefile uses `coq_makefile` when it is on the path and `rocq makefile`
+otherwise; to choose explicitly, run `make GEN="rocq makefile"`.
+
+Tested with Coq 8.18.0 and with Rocq 9.3.0 (standard library 9.2.0).  Under Rocq 9
+each file produces one deprecation notice, because the sources use the spelling
+`From Coq Require ...`, which is the one accepted by both systems.
 
 ## Contents
 
 | File | Content | Paper |
 |------|---------|-------|
-| `theories/Piecewise.v` | Linear terms `lfun`, piecewise terms `Plfun`, evaluation, substitution; Presburger-definability of their graphs; the `arith` tactic (`lia` after case analysis). | §4.2–4.3 |
-| `theories/ListMorphisms.v` | Non-dependent list morphisms `PPCm` (shape map + position map), flat-index interpretation `interp`, the equality `pcmEQ` (eq. 16), its soundness `pcmEQ_ok`, well-typedness `in_range`, losslessness `lossless`, composition `comp1`/`comp2` with correctness proofs `comp1_ok`/`comp2_ok`, and the decision tactic `containers`. | §4.3–4.5 |
-| `theories/Examples.v` | All fourteen properties of Figure 4; the agent-adapter properties of §5 (`lastk_idem`, `lastk_app`, `split_merge`, `lastk_lastk`); refutations of two false laws (`badlastk_detected`, `drop_lastk_refuted`); losslessness results; **transfer lemmas** relating every morphism to the Coq standard library (`Rev_spec`, `Tail_spec`, `Take_spec`, `Drop_spec`, `App_spec`) and two end-to-end theorems about ordinary lists obtained without induction (`rev_involutive_via_containers`, `firstn_skipn_via_containers`). | §4.6, §5 |
-| `theories/Containers.v` | Containers, extensions, container morphisms (dependent lenses), `mmap`, composition and functoriality; agents as coalgebras, `wrap`, `run`, behavioural consequence of adapter equality; the list container and the bridge `to_cmor` / `to_cmor_interp` / `pcmEQ_wrap` to the arithmetic representation; the tree container `TreeC`, the flattening morphism `flatten : TreeC => ListC` (Listing 21 of the thesis) with the proof `flatten_cartesian` that it is lossless, and `Sum_not_injective`. | §2, §3, §5.1 |
-| `legacy/` | The original 2011 sources (Coq 8.1), kept for reference. They do not compile with current Coq. | — |
+| `theories/Piecewise.v` | Linear terms `lfun` and piecewise-linear terms `Plfun`; evaluation; substitution and its correctness; the quantifier-free graphs of cut-off subtraction and of the conditional; the tactic `arith` (case analysis, then `lia`). | §4.3, §4.6 |
+| `theories/ListMorphisms.v` | List morphisms as pairs of terms, `PPCm` (shape map and position map); the interpretation `interp`; quasi-container equality `pcmEQ` and its soundness `pcmEQ_ok`; the range condition `in_range` and the losslessness condition `lossless`; composition `comp1`, `comp2` with correctness `comp1_ok`, `comp2_ok`; the tactic `containers`; the bounded counterexample search `find_cex` with `find_cex_sound`, and the tactic `refute`. | §4.2–4.4, §4.6 |
+| `theories/Examples.v` | The basic morphisms (reverse, tail, take, drop, rotations, last-*k*, append, …) with their range and losslessness lemmas; the fourteen list identities of the figure "Properties of lists"; the adapter laws `lastk_idem`, `lastk_app`, `split_merge`, `lastk_lastk`; two refuted laws with their computed counterexamples; a transfer lemma relating each morphism to the corresponding standard-library function (`Rev_spec`, `Take_spec`, `App_spec`, …); and theorems about ordinary lists obtained with no induction (`rev_involutive_via_containers`, `firstn_skipn_via_containers`). | §4.5, §4.6, §5.3 |
+| `theories/Containers.v` | Containers, extensions, container morphisms (dependent lenses), `mmap` and functoriality, cartesian morphisms; composition of containers and lifting of morphisms (`cComp`, `whisker`, `lift_all`); agents, environments, `wrap`, `run`; equality of morphisms into the list container (`cmorEq`); the bridge from the arithmetic representation (`to_cmor`, `to_cmor_interp`, `ccomp_represents`, `represents_cmorEq`, `cmorEq_run`, `lossless_cartesian`); the tree container and the flattening morphism (`flatten`, `flatten_cartesian`). | §2, §3, §5.1–5.2 |
+| `theories/AgentExamples.v` | The adapters as container morphisms; their laws as equations between container morphisms (`window_idem`, `reverse_involutive`, …) and as statements about runs (`window_idem_run`, …); losslessness of pipelines (`pipeline_cartesian`); concrete agents and environments whose runs are computed by the kernel. | §5.3 |
+| `article/` | The paper (LaTeX source and PDF). | |
+| `legacy/` | Earlier Coq sources (Coq 8.1) that accompanied the author's doctoral thesis, kept for reference.  They do not compile with current versions of Coq. | |
 
-## Changes with respect to the 2011 development
+## Where the results of the paper are
 
-* `omega` (deprecated in Coq 8.12, removed in 8.14) is replaced by `lia`.
-  The `optimiseOmega` pre-processing of the 2011 tactic is no longer needed.
-  Typical proof times are 10–450 ms (Figure 4 lemmas: ≤ 40 ms each except
-  `rev_app` at 0.18 s; `lastk_app` 0.43 s) on a 2.1 GHz Xeon — compared with
-  6 s (thesis, 2010) and 75 s (referee report, 2014) for the 2011 code.
-* Variables of linear terms are plain `nat` indices into an environment rather
-  than `Fin n`-indexed; morphisms are first-order pairs of terms with the
-  arity supplied to the equality and interpretation.  This removes all
-  dependent pattern matching from the arithmetic core.
-* Two definitions of the 2011 code were incorrect and are corrected here:
-  `take1` had shape map `max n m` instead of `min n m`, and `appn1`'s position
-  map did not follow the flat-index encoding used by the interpretation.
-  All properties are re-proved for the corrected definitions, and each
-  definition is validated against the corresponding standard-library
-  function by a transfer lemma.
-* Composition of an arity-2 morphism with two morphisms on the *same*
-  inputs (`comp2`) is new; it is what allows `rev (xs ++ ys) = rev ys ++ rev xs`
-  and the sliding-window invariant to be stated.
-* Correctness of composition (`comp1_ok`, `comp2_ok`) is proved, under the
-  well-typedness side condition `in_range`, which is itself decided by the
-  same tactic.
-* The container-theoretic layer (`Containers.v`) and the agent reading are new.
+| Paper | Coq |
+|-------|-----|
+| Functoriality of `mmap`; composition of cartesian morphisms (§2.3) | `mmap_id`, `mmap_comp`, `cartesian_comp` |
+| Compositionality of wrapping (§3.3) | `wrap_id`, `wrap_comp`, `wrap_ext_eq`, `run_wrap_pull` |
+| Lifting to lists of items (§3.4) | `whisker`, `whisker_comp`, `whisker_assoc`, `cmorEq_whisker`; `lift_all`, `lossless_all`, `flatten_all` |
+| Flattening is cartesian; its shape map is not injective (§3.5) | `flatten_cartesian`, `Sum_not_injective` |
+| Graphs of piecewise-linear terms (§4.3) | `suB_graph`, `pf_graph`, `psubst_ok` |
+| Soundness of quasi-container equality (§4.4) | `pcmEQ_ok` |
+| Correctness of composition (§4.4) | `comp1_ok`, `comp2_ok` |
+| Properties of lists (§4.5) | `rev_rev`, `rev_app`, …, `butlast_rot` in `Examples.v` |
+| From arithmetic equality to behaviour (§5.1) | `to_cmor`, `to_cmor_interp`, `ccomp_represents`, `represents_cmorEq`, `cmorEq_run`, `pcmEQ_run`, `cmorEq_run_lifted` |
+| Losslessness (§5.2) | `lossless_cartesian`, `Rev_lossless`, `Rot_lossless`, `Unrot_lossless`, `Tail_lossy`, `Take_lossy`, `Drop_lossy`, `Lastk_lossy` |
+| Context windows, refuted laws, fan-out/fan-in, planners (§5.3) | `lastk_app`, `lastk_idem`, `lastk_lastk`, `drop_lastk_refuted`, `badlastk_detected`, `split_merge`, `pcmEQ_run_planner`, `pipeline_cartesian`, `run_window`, `run_firstk` |
 
-## Checking axiom-freedom
+`cmorEq_run_lifted` takes function extensionality as an explicit hypothesis
+(`FunExt`); nothing is assumed as an axiom.
+
+## Proving and refuting a law
+
+```coq
+From AAPP Require Import Examples.
+
+(* take n (drop m xs) = drop m (take (n + m) xs) *)
+Goal forall n m, pcmEQ 1 (comp1 1 (Take n) (Drop m)) (comp1 1 (Drop m) (Take (n + m))).
+Proof. containers. Qed.
+
+(* drop 1 (last_2 xs) = last_1 xs  is false: the search returns a list of length 1 *)
+Goal ~ pcmEQ 1 (comp1 1 (Drop 1) (Lastk 2)) (Lastk 1).
+Proof. refute 4. Qed.
+```
+
+## Checking that no axioms are used
 
 ```
-echo 'From AAPP Require Import Containers Examples.
-Print Assumptions rev_involutive_via_containers.
-Print Assumptions pcmEQ_wrap.' | coqtop -Q theories AAPP -q
+printf 'From AAPP Require Import Examples Containers AgentExamples.\nPrint Assumptions rev_involutive_via_containers.\nPrint Assumptions cmorEq_run.\nPrint Assumptions window_idem_run.\n' > /tmp/assumptions.v
+coqc -Q theories AAPP /tmp/assumptions.v
 ```
 
-Both print `Closed under the global context`.
+Each line of output is `Closed under the global context`.
+
+## Licence
+
+CC0 1.0 Universal; see `LICENSE`.

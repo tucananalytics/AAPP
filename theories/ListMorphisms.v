@@ -1,5 +1,8 @@
 (** * Presburger-definable list morphisms
 
+    Part of the development accompanying "Arithmetic Analysis of Polymorphic
+    Programs and the Verification of Typed Agent Interfaces" (Section 4).
+
     A polymorphic function [List X ^ k -> List X] is represented, following the
     container representation theorem, by a pair
 
@@ -22,6 +25,30 @@ From AAPP Require Export Piecewise.
 Import ListNotations.
 
 Set Implicit Arguments.
+
+(** ** Facts about lists
+
+    A few facts about [length] are proved here rather than taken from the
+    standard library, whose names for them changed between Coq 8.19 and 8.20;
+    this keeps the development independent of the library version. *)
+
+Lemma len_map : forall (A B : Type) (h : A -> B) (l : list A), length (map h l) = length l.
+Proof. induction l; simpl; auto. Qed.
+
+Lemma len_seq : forall n s, length (seq s n) = n.
+Proof. induction n; intros; simpl; auto. Qed.
+
+Lemma len_app : forall (A : Type) (l l' : list A), length (l ++ l') = length l + length l'.
+Proof. induction l; intros; simpl; auto. Qed.
+
+Lemma len_rev : forall (A : Type) (l : list A), length (rev l) = length l.
+Proof. induction l; simpl; auto. rewrite len_app, IHl; simpl; lia. Qed.
+
+Lemma len_firstn : forall (A : Type) n (l : list A), length (firstn n l) = Nat.min n (length l).
+Proof. induction n; destruct l; simpl; auto. Qed.
+
+Lemma len_skipn : forall (A : Type) n (l : list A), length (skipn n l) = length l - n.
+Proof. induction n; destruct l; simpl; auto. Qed.
 
 (** ** Environments *)
 
@@ -70,14 +97,14 @@ Definition pos   (m : PPCm) : Plfun := snd m.
     for out-of-range positions; a well-typed morphism never produces one
     (Definition [in_range] below). *)
 
-Notation Rep X := (nat * (nat -> X))%type.
+Definition Rep (X : Type) : Type := (nat * (nat -> X))%type.
 
 Definition env (X : Type) (ins : list (Rep X)) : nat -> nat :=
   fun j => nth j (map (@fst nat (nat -> X)) ins) 0.
 
 Lemma env_beyond : forall X (ins : list (Rep X)) j, length ins <= j -> env ins j = 0.
 Proof.
-  intros; unfold env; apply nth_overflow; rewrite map_length; auto.
+  intros; unfold env; apply nth_overflow; rewrite len_map; auto.
 Qed.
 
 (** Flat lookup across the concatenation of the inputs. *)
@@ -99,12 +126,12 @@ Definition to_list (X : Type) (r : Rep X) : list X :=
   map (snd r) (seq 0 (fst r)).
 
 Lemma to_list_length : forall X (r : Rep X), length (to_list r) = fst r.
-Proof. intros; unfold to_list; rewrite map_length, seq_length; auto. Qed.
+Proof. intros; unfold to_list; rewrite len_map, len_seq; auto. Qed.
 
 Lemma to_list_nth : forall X (r : Rep X) i d, i < fst r -> nth i (to_list r) d = snd r i.
 Proof.
   intros X [n g] i d H; unfold to_list; simpl in *.
-  rewrite (nth_indep _ d (g 0)) by (rewrite map_length, seq_length; auto).
+  rewrite (nth_indep _ d (g 0)) by (rewrite len_map, len_seq; auto).
   rewrite map_nth, seq_nth by auto. reflexivity.
 Qed.
 
@@ -119,10 +146,10 @@ Qed.
 
     Two morphisms of arity [k] are equal when their shape maps agree on all
     environments and their position maps agree on all output positions that
-    actually exist (i.e. [i < u rho]).  This is equation (16) of the paper
-    ((6.7) of the thesis).  It is a Pi_1 statement (universal prefix,
-    quantifier-free matrix) of Presburger arithmetic, which is exactly the
-    fragment handled by [lia]. *)
+    actually exist (i.e. [i < u rho]).  This is the quasi-container equality
+    of Section 4.2 of the paper (equation (6.7) of the thesis).  It is a
+    universal statement (universal prefix, quantifier-free matrix) of
+    Presburger arithmetic, which is the fragment handled by [lia]. *)
 
 Definition pcmEQ (k : nat) (l r : PPCm) : Prop :=
   forall rho,
@@ -146,7 +173,8 @@ Qed.
 (** ** Well-typedness: positions in range
 
     The dependent container representation guarantees [f_n i : Fin n]; in the
-    non-dependent setting this is a side condition, again Pi_1 Presburger. *)
+    non-dependent setting this is a side condition, again a universal
+    Presburger statement. *)
 Fixpoint sumvars (k : nat) : lfun :=
   match k with
   | 0 => cnst 0
@@ -161,7 +189,9 @@ Definition in_range (k : nat) (m : PPCm) : Prop :=
 
     An arity-1 morphism is cartesian when every position map [f_n] is a
     bijection [Fin (u n) -> Fin n].  For finite sets this is equivalent to
-    [u n = n] together with injectivity -- again a Pi_1 statement. *)
+    [u n = n] together with injectivity -- again a universal statement.  That
+    [lossless] (with [in_range]) implies cartesianness of the corresponding
+    container morphism is proved in [Containers.lossless_cartesian]. *)
 Definition lossless (m : PPCm) : Prop :=
   forall rho,
     pevl (shape m) rho = rho 0 /\
@@ -211,11 +241,13 @@ Qed.
 
 (** *** Correctness of composition *)
 
-Lemma env1 : forall X (n : nat) (g : nat -> X) j,
-    env [(n, g)] j = if j =? 0 then n else 0.
-Proof. intros; unfold env; destruct j; simpl; auto. destruct j; auto. Qed.
+(** The environment of a single input of length [n], and of a pair. *)
+Definition env1 (n : nat) : nat -> nat := fun j => if j =? 0 then n else 0.
 
-Lemma env2 : forall X (n1 n2 : nat) (g1 g2 : nat -> X) j,
+Lemma env_single : forall X (n : nat) (g : nat -> X) j, env [(n, g)] j = env1 n j.
+Proof. intros; unfold env, env1; destruct j; simpl; auto. destruct j; auto. Qed.
+
+Lemma env_pair : forall X (n1 n2 : nat) (g1 g2 : nat -> X) j,
     env [(n1, g1); (n2, g2)] j = if j =? 0 then n1 else if j =? 1 then n2 else 0.
 Proof. intros; unfold env; destruct j as [|[|j]]; simpl; auto. destruct j; auto. Qed.
 
@@ -240,11 +272,11 @@ Proof.
   set (sig := fun j' => if j' =? 0 then shield k (shape r)
                         else if j' =? 1 then lp (vr k) else kon 0).
   assert (Hsig : forall i j, pevl (sig j) (ext rho k i) = ext (env [(n1, g1)]) 1 i j).
-  { intros i j. unfold sig, ext at 2. rewrite env1.
+  { intros i j. unfold sig, ext at 2. rewrite env_single; unfold env1.
     destruct (Nat.eqb_spec j 0); [subst; simpl; apply shield_env; intros; apply ext_neq; lia |].
     destruct (Nat.eqb_spec j 1); [subst; simpl; apply ext_eq | simpl; auto]. }
   assert (Hsig0 : forall j, pevl (if j =? 0 then shield k (shape r) else kon 0) rho = env [(n1, g1)] j).
-  { intros j. rewrite env1.
+  { intros j. rewrite env_single; unfold env1.
     destruct (Nat.eqb_spec j 0); [subst; simpl; apply shield_env; auto | simpl; auto]. }
   unfold interp, comp1, RepEq; simpl. fold k rho n1 g1 sig.
   assert (Hs : pevl (psubst (shape l) (fun j => if j =? 0 then shield k (shape r) else kon 0)) rho
@@ -257,7 +289,7 @@ Proof.
   { rewrite psubst_ok. apply pevl_ext; auto. }
   assert (Hrange : p < n1).
   { specialize (Hl (env [(n1, g1)]) i Hi). simpl in Hl.
-    rewrite !env1 in Hl. simpl in Hl. unfold p. lia. }
+    rewrite !env_single in Hl; unfold env1 in Hl. simpl in Hl. unfold p. lia. }
   simpl.
   match goal with
   | |- context [Nat.ltb ?a ?b] =>
@@ -286,12 +318,12 @@ Proof.
                        else if j =? 2 then lp (vr k) else kon 0).
   (* evaluating [sig] in [ext rho k i] gives the environment of the intermediate list *)
   assert (Hsig : forall i j, pevl (sig j) (ext rho k i) = ext (env [(n1, g1); (n2, g2)]) 2 i j).
-  { intros i j. unfold sig, ext at 2. rewrite env2.
+  { intros i j. unfold sig, ext at 2. rewrite env_pair.
     destruct (Nat.eqb_spec j 0); [subst; simpl; apply shield_env; intros; apply ext_neq; lia |].
     destruct (Nat.eqb_spec j 1); [subst; simpl; apply shield_env; intros; apply ext_neq; lia |].
     destruct (Nat.eqb_spec j 2); [subst; simpl; apply ext_eq | simpl; auto]. }
   assert (Hsig0 : forall j, pevl (sig j) rho = env [(n1, g1); (n2, g2)] j).
-  { intros j. unfold sig. rewrite env2.
+  { intros j. unfold sig. rewrite env_pair.
     destruct (Nat.eqb_spec j 0); [subst; simpl; apply shield_env; auto |].
     destruct (Nat.eqb_spec j 1); [subst; simpl; apply shield_env; auto |].
     destruct (Nat.eqb_spec j 2); [subst; simpl; apply env_beyond; auto | simpl; auto]. }
@@ -305,7 +337,7 @@ Proof.
   { rewrite psubst_ok. apply pevl_ext; auto. }
   assert (Hrange : p < n1 + n2).
   { specialize (Hl (env [(n1, g1); (n2, g2)]) i Hi). simpl in Hl.
-    rewrite !env2 in Hl. simpl in Hl. unfold p. lia. }
+    rewrite !env_pair in Hl. simpl in Hl. unfold p. lia. }
   simpl.
   assert (Hc : pevl (psub (shield k (shape r1)) (psubst (pos l) sig)) (ext rho k i) = n1 - p).
   { rewrite psub_ok, Hp. f_equal. apply shield_env; intros; apply ext_neq; lia. }
@@ -329,13 +361,46 @@ Proof.
     + simpl. rewrite !ext_neq; auto.
 Qed.
 
+(** *** Composition at a single input
+
+    For arity-1 morphisms evaluated at an input of length [n], the composite
+    behaves as composition of container morphisms does: shapes compose
+    forwards and positions backwards.  These two equations are what links
+    [comp1] to composition of container morphisms in [Containers]. *)
+
+Lemma comp1_shape1 : forall (l r : PPCm) n,
+    pevl (shape (comp1 1 l r)) (env1 n)
+    = pevl (shape l) (env1 (pevl (shape r) (env1 n))).
+Proof.
+  intros l r n. unfold comp1, shape; cbn [fst]. rewrite psubst_ok.
+  apply pevl_ext; intros j. unfold env1 at 2.
+  destruct (j =? 0); [| reflexivity].
+  rewrite shield_ok. apply pevl_ext; intros [| j']; reflexivity.
+Qed.
+
+Lemma comp1_pos1 : forall (l r : PPCm) n i,
+    pevl (pos (comp1 1 l r)) (ext (env1 n) 1 i)
+    = pevl (pos r)
+           (ext (env1 n) 1 (pevl (pos l) (ext (env1 (pevl (shape r) (env1 n))) 1 i))).
+Proof.
+  intros l r n i. unfold comp1, pos; cbn [snd]. rewrite psubst_ok.
+  apply pevl_ext; intros j. unfold ext at 3.
+  destruct (Nat.eqb_spec j 1) as [-> | Hj].
+  - rewrite psubst_ok. apply pevl_ext; intros [| [| j']].
+    + cbn [Nat.eqb]. rewrite shield_ok. apply pevl_ext; intros [| [| j'']]; reflexivity.
+    + reflexivity.
+    + reflexivity.
+  - cbn [pevl evl]. unfold ext. rewrite (proj2 (Nat.eqb_neq j 1) Hj). reflexivity.
+Qed.
+
 (** ** The decision tactic
 
     [containers] unfolds the equality into its arithmetic content, eliminates
     the conditionals of the piecewise terms by case analysis, and hands the
-    resulting linear-arithmetic goals to [lia].  Compared with the 2011
-    tactic, the pre-processing step [optimiseOmega] is no longer needed:
-    [lia] (Micromega) handles the goals directly. *)
+    resulting linear-arithmetic goals to [lia].  Soundness is guaranteed by
+    the kernel; the case analysis is exhaustive, so completeness of the tactic
+    on [pcmEQ], [in_range] and [lossless] goals rests on that of [lia] for
+    linear integer arithmetic. *)
 
 Create HintDb morphisms.
 #[export] Hint Unfold comp1 comp2 idm : morphisms.
@@ -360,3 +425,76 @@ Ltac unfold_morphism :=
   intros; repeat split; intros; repeat simp_morph.
 
 Ltac containers := unfold_morphism; arith.
+
+(** ** Refutation by bounded search
+
+    [lia] proves valid statements; it does not produce counterexamples to
+    invalid ones.  For arity-1 morphisms the function [find_cex] searches the
+    input lengths [0 .. bound] for a length at which the shape maps differ,
+    or a position at which the position maps differ, and [find_cex_sound]
+    turns any counterexample found into a proof that the equality fails.
+    (Presburger arithmetic has the small-model property, so a sufficiently
+    large bound always exists; we do not need to compute it.) *)
+
+Inductive cex : Set :=
+| ShapeCex : nat -> cex            (** the shapes differ at input length [n] *)
+| PosCex   : nat -> nat -> cex.    (** the positions differ at length [n], position [i] *)
+
+(** The least position [i < b] at which the position maps differ, if any. *)
+Fixpoint pos_diff (l r : PPCm) (rho : nat -> nat) (b : nat) : option nat :=
+  match b with
+  | 0 => None
+  | S b' =>
+      match pos_diff l r rho b' with
+      | Some i => Some i
+      | None => if pevl (pos l) (ext rho 1 b') =? pevl (pos r) (ext rho 1 b')
+                then None else Some b'
+      end
+  end.
+
+Definition cex_at (l r : PPCm) (n : nat) : option cex :=
+  if pevl (shape l) (env1 n) =? pevl (shape r) (env1 n)
+  then match pos_diff l r (env1 n) (pevl (shape l) (env1 n)) with
+       | Some i => Some (PosCex n i)
+       | None => None
+       end
+  else Some (ShapeCex n).
+
+Fixpoint find_cex (l r : PPCm) (bound : nat) : option cex :=
+  match bound with
+  | 0 => cex_at l r 0
+  | S b => match find_cex l r b with
+           | Some c => Some c
+           | None => cex_at l r (S b)
+           end
+  end.
+
+Lemma pos_diff_sound : forall l r rho b i,
+    pos_diff l r rho b = Some i ->
+    i < b /\ pevl (pos l) (ext rho 1 i) <> pevl (pos r) (ext rho 1 i).
+Proof.
+  induction b as [| b IH]; intros i H; simpl in H; [discriminate |].
+  destruct (pos_diff l r rho b) as [j |] eqn:E.
+  - inversion H; subst. destruct (IH i eq_refl); split; auto.
+  - destruct (Nat.eqb_spec (pevl (pos l) (ext rho 1 b)) (pevl (pos r) (ext rho 1 b)));
+      [discriminate | inversion H; subst; split; auto].
+Qed.
+
+Lemma cex_at_sound : forall l r n c, cex_at l r n = Some c -> ~ pcmEQ 1 l r.
+Proof.
+  unfold cex_at; intros l r n c H Heq. destruct (Heq (env1 n)) as [Hs Hp].
+  destruct (Nat.eqb_spec (pevl (shape l) (env1 n)) (pevl (shape r) (env1 n))); [| contradiction].
+  destruct (pos_diff l r (env1 n) (pevl (shape l) (env1 n))) as [i |] eqn:E; [| discriminate].
+  destruct (pos_diff_sound _ _ _ _ E) as [Hi Hne]. apply Hne, Hp, Hi.
+Qed.
+
+Theorem find_cex_sound : forall l r bound c, find_cex l r bound = Some c -> ~ pcmEQ 1 l r.
+Proof.
+  induction bound as [| b IH]; intros c H; simpl in H.
+  - eapply cex_at_sound; eauto.
+  - destruct (find_cex l r b) as [c' |] eqn:E; [eapply IH; eauto | eapply cex_at_sound; eauto].
+Qed.
+
+(** [refute n] proves [~ pcmEQ 1 l r] by finding a counterexample among the
+    input lengths [0 .. n]. *)
+Ltac refute n := eapply find_cex_sound with (bound := n); vm_compute; reflexivity.

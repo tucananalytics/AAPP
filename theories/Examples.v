@@ -1,16 +1,17 @@
-(** * Examples: the properties of Figure 4 of the paper, mechanised
+(** * Examples: list identities and adapter laws, mechanised
 
-    Every property is stated as a [pcmEQ] between composites of Presburger
-    definable morphisms and discharged by the single tactic [containers].
+    Part of the development accompanying "Arithmetic Analysis of Polymorphic
+    Programs and the Verification of Typed Agent Interfaces" (Sections 4.5,
+    4.6 and 5.3).
 
-    Compared with the 2011 development, two definitions are corrected here:
-    [take] (whose shape map was [max n m] rather than [min n m]) and [app]
-    (whose position map did not match the flat encoding used by the
-    interpretation).  All the properties below hold of the corrected
-    definitions, and each definition is additionally validated against the
-    corresponding function of the Coq standard library (Section
-    "Transfer lemmas"), which is the two-tier methodology suggested by one of
-    the referees. *)
+    Every property is stated as a [pcmEQ] between composites of
+    Presburger-definable morphisms and discharged by the single tactic
+    [containers]; false laws are refuted by the bounded counterexample search
+    [refute].  Each basic morphism is validated against the corresponding
+    function of the Coq standard library by a transfer lemma (Section
+    "Transfer"), so that a mis-stated representation cannot go unnoticed, and
+    theorems about ordinary lists are then derived from the decision procedure
+    without induction. *)
 
 From Coq Require Import Arith Lia List PeanoNat Compare_dec.
 From AAPP Require Export ListMorphisms.
@@ -94,8 +95,8 @@ Lemma Rev_lossless : lossless Rev.          Proof. containers. Qed.
 Lemma Rot_lossless : lossless Rot.          Proof. containers. Qed.
 Lemma Unrot_lossless : lossless Unrot.      Proof. containers. Qed.
 
-(** ... whereas the truncations are not: a governance-relevant fact that the
-    decision procedure establishes with a concrete witness. *)
+(** ... whereas the truncations are not; each is refuted by a witness (for
+    instance an input of length [k + 1] for [Lastk k]). *)
 Lemma Tail_lossy : ~ lossless Tail.
 Proof.
   intros H. destruct (H (fun _ => 1)) as [Hs _]. unfold_morphism. discriminate.
@@ -116,7 +117,7 @@ Proof.
   intros m H. destruct (H (fun _ => 1)) as [Hs _]. unfold_morphism. arith.
 Qed.
 
-(** ** The properties of Figure 4 *)
+(** ** The list identities of Section 4.5 (figure "Properties of lists") *)
 
 (** rev (rev xs) = xs *)
 Theorem rev_rev : pcmEQ 1 (comp1 1 Rev Rev) idm.
@@ -174,7 +175,7 @@ Proof. containers. Qed.
 Theorem butlast_rot : pcmEQ 1 (comp1 1 Butlast Rot) Tail.
 Proof. containers. Qed.
 
-(** ** Properties of list-shaped agent adapters (Section 5 of the paper) *)
+(** ** Laws of list-shaped agent adapters (Section 5.3 of the paper) *)
 
 (** Truncating a context window is idempotent:  lastk k (lastk k h) = lastk k h *)
 Theorem lastk_idem : forall k, pcmEQ 1 (comp1 1 (Lastk k) (Lastk k)) (Lastk k).
@@ -201,67 +202,89 @@ Proof. containers. Qed.
 
 (** A tempting but *false* adapter law is refuted rather than proved:
     "dropping the oldest turn of a (k+1)-window gives a k-window" fails when
-    the history is shorter than the window (witness: a history of length 1). *)
-Theorem drop_lastk_refuted : ~ pcmEQ 1 (comp1 1 (Drop 1) (Lastk 2)) (Lastk 1).
-Proof.
-  intros H. destruct (H (fun _ => 1)) as [Hs _]. unfold_morphism. discriminate.
-Qed.
+    the history is shorter than the window.  The search finds the witness, a
+    history of length 1, at which the two shape maps differ. *)
+Example drop_lastk_cex :
+  find_cex (comp1 1 (Drop 1) (Lastk 2)) (Lastk 1) 4 = Some (ShapeCex 1).
+Proof. vm_compute. reflexivity. Qed.
 
-(** An off-by-one adapter is rejected: the decision procedure refutes the
-    equation (the counterexample below is [n = k + 1, i = 0]). *)
+Theorem drop_lastk_refuted : ~ pcmEQ 1 (comp1 1 (Drop 1) (Lastk 2)) (Lastk 1).
+Proof. refute 4. Qed.
+
+(** An off-by-one adapter is rejected: already for a history of length 1 the
+    first window position is routed to the wrong turn. *)
 Definition BadLastk (k : nat) : PPCm :=
   (pf (lt_ x0 (cnst k)) (lp x0) (kon k), lp (adD (adD x1 (suB x0 (cnst k))) (cnst 1))).
 #[export] Hint Unfold BadLastk : morphisms.
 
+Example badlastk_cex : find_cex (Lastk 2) (BadLastk 2) 4 = Some (PosCex 1 0).
+Proof. vm_compute. reflexivity. Qed.
+
 Theorem badlastk_detected : ~ pcmEQ 1 (Lastk 2) (BadLastk 2).
+Proof. refute 4. Qed.
+
+(** ** Why representations must be validated
+
+    A "take" whose conditional is swapped has shape map [max n m] instead of
+    [min n m].  It nevertheless satisfies both identities of the figure in
+    which [take] occurs, so those identities cannot be what certifies the
+    representation.  It is caught by the range condition (and it has no
+    transfer lemma): for the empty list it claims an output of length [m]. *)
+Definition SwappedTake (m : nat) : PPCm := (pf (lt_ x0 (cnst m)) (kon m) (lp x0), lp x1).
+#[export] Hint Unfold SwappedTake : morphisms.
+
+Theorem swapped_drop_take : forall n m,
+    pcmEQ 1 (comp1 1 (Drop n) (SwappedTake m)) (comp1 1 (SwappedTake (m - n)) (Drop n)).
+Proof. containers. Qed.
+
+Theorem swapped_take_drop : forall n m,
+    pcmEQ 1 (comp1 1 (SwappedTake n) (Drop m)) (comp1 1 (Drop m) (SwappedTake (n + m))).
+Proof. containers. Qed.
+
+Example swapped_take_ill_typed : ~ in_range 1 (SwappedTake 1).
 Proof.
-  intros H. destruct (H (fun _ => 3)) as [_ Hp].
-  specialize (Hp 0). unfold_morphism. simpl in Hp. lia.
+  intros H. specialize (H (fun _ => 0) 0). unfold_morphism.
+  assert (Hlt : 0 < 1) by lia. specialize (H Hlt). lia.
 Qed.
 
 (** ** Transfer lemmas: the morphisms agree with the standard library
 
-    Each lemma is a short structural induction; together with [pcmEQ_ok] and
-    [comp1_ok] they transport every property above to ordinary Coq lists. *)
+    Each lemma relates the interpretation of a morphism to the corresponding
+    function on ordinary lists.  Together with [pcmEQ_ok], [comp1_ok] and
+    [comp2_ok] they transport every property above to ordinary Coq lists. *)
 
 Section Transfer.
   Variable X : Type.
   Variable d : X.
 
-  Lemma Rev_spec : forall l : list X,
-      RepEq (interp Rev [of_list d l] d) (of_list d (rev l)).
+  (** A general criterion: to validate an arity-1 morphism [m] against a list
+      function it suffices to compare lengths and [nth] elements. *)
+  Lemma spec1 : forall (m : PPCm) (l L : list X),
+      length L = pevl (shape m) (env1 (length l)) ->
+      (forall i, i < length L ->
+                 pevl (pos m) (ext (env1 (length l)) 1 i) < length l /\
+                 nth i L d = nth (pevl (pos m) (ext (env1 (length l)) 1 i)) l d) ->
+      RepEq (interp m [of_list d l] d) (of_list d L).
   Proof.
-    intros l. unfold interp, of_list, RepEq; simpl.
-    rewrite rev_length. split; auto.
-    intros i Hi. unfold env, ext in *; simpl in *.
-    destruct (Nat.ltb_spec (length l - i - 1) (length l)); [| lia].
-    rewrite rev_nth by auto. f_equal. lia.
-  Qed.
-
-  Lemma Tail_spec : forall l : list X,
-      RepEq (interp Tail [of_list d l] d) (of_list d (tl l)).
-  Proof.
-    intros l. unfold interp, of_list, RepEq; simpl.
-    destruct l as [| x l]; simpl.
-    - split; auto. intros; lia.
-    - rewrite Nat.sub_0_r. split; auto. intros i Hi. unfold env, ext in *; simpl in *.
-      destruct (Nat.ltb_spec (i + 1) (S (length l))); [| lia].
-      rewrite Nat.add_1_r. reflexivity.
+    intros m l L Hlen Hpos.
+    assert (Hs : pevl (shape m) (env [of_list d l]) = length L).
+    { rewrite Hlen. apply pevl_ext; intros j; apply env_single. }
+    assert (Hp : forall i, pevl (pos m) (ext (env [of_list d l]) 1 i)
+                           = pevl (pos m) (ext (env1 (length l)) 1 i)).
+    { intros i. apply pevl_ext; intros j; unfold ext; destruct (j =? 1); auto.
+      apply env_single. }
+    unfold of_list in Hs, Hp. unfold interp, of_list, RepEq; simpl.
+    split; [exact Hs |].
+    intros i Hi. rewrite Hs in Hi. destruct (Hpos i Hi) as [Hr Hn].
+    rewrite Hp.
+    destruct (Nat.ltb_spec (pevl (pos m) (ext (env1 (length l)) 1 i)) (length l)); [| lia].
+    symmetry; exact Hn.
   Qed.
 
   Lemma nth_firstn : forall (l : list X) m i, i < m -> nth i (firstn m l) d = nth i l d.
   Proof.
     induction l; intros m i Hi; destruct m; simpl; auto; try lia.
     destruct i; auto. apply IHl; lia.
-  Qed.
-
-  Lemma Take_spec : forall (m : nat) (l : list X),
-      RepEq (interp (Take m) [of_list d l] d) (of_list d (firstn m l)).
-  Proof.
-    intros m l. unfold interp, of_list, RepEq. unfold_morphism; unfold env in *; simpl in *.
-    - rewrite firstn_length. arith.
-    - rewrite nth_firstn by arith.
-      destruct (Nat.ltb_spec i (length l)); auto; arith.
   Qed.
 
   Lemma nth_skipn : forall (l : list X) m i, nth i (skipn m l) d = nth (i + m) l d.
@@ -273,20 +296,113 @@ Section Transfer.
     - rewrite IHl. replace (i + S m) with (S (i + m)) by lia. reflexivity.
   Qed.
 
+  (** [spec] reduces a transfer lemma to its arithmetic content. *)
+  Ltac spec :=
+    apply spec1;
+    [ autounfold with morphisms; unfold shape, env1, kon, lt_, x0, x1; cbn [fst snd pevl evl Nat.eqb]
+    | intros i Hi; autounfold with morphisms;
+      unfold pos, ext, env1, kon, lt_, x0, x1; cbn [fst snd pevl evl Nat.eqb] ].
+
+  Lemma Rev_spec : forall l : list X,
+      RepEq (interp Rev [of_list d l] d) (of_list d (rev l)).
+  Proof.
+    intros l; spec.
+    - apply len_rev.
+    - rewrite len_rev in Hi. split; [lia |].
+      rewrite rev_nth by auto. f_equal; lia.
+  Qed.
+
+  Lemma Tail_spec : forall l : list X,
+      RepEq (interp Tail [of_list d l] d) (of_list d (tl l)).
+  Proof.
+    intros l; spec; destruct l as [| x l]; simpl in *; try lia.
+    split; [lia |]. rewrite Nat.add_1_r; reflexivity.
+  Qed.
+
+  Lemma Butlast_spec : forall l : list X,
+      RepEq (interp Butlast [of_list d l] d) (of_list d (removelast l)).
+  Proof.
+    intros l; rewrite removelast_firstn_len; spec.
+    - rewrite len_firstn; lia.
+    - rewrite len_firstn in Hi. split; [lia |]. apply nth_firstn; lia.
+  Qed.
+
+  Lemma Head_spec : forall l : list X,
+      RepEq (interp Head [of_list d l] d) (of_list d (firstn 1 l)).
+  Proof.
+    intros l; spec.
+    - rewrite len_firstn; lia.
+    - rewrite len_firstn in Hi. split; [lia |].
+      rewrite nth_firstn by lia. f_equal; lia.
+  Qed.
+
+  Lemma Last_spec : forall l : list X,
+      RepEq (interp Last [of_list d l] d) (of_list d (skipn (length l - 1) l)).
+  Proof.
+    intros l; spec.
+    - rewrite len_skipn; lia.
+    - rewrite len_skipn in Hi. split; [lia |].
+      rewrite nth_skipn. f_equal; lia.
+  Qed.
+
+  Lemma Take_spec : forall (m : nat) (l : list X),
+      RepEq (interp (Take m) [of_list d l] d) (of_list d (firstn m l)).
+  Proof.
+    intros m l; spec.
+    - rewrite len_firstn; arith.
+    - rewrite len_firstn in Hi. split; [lia |]. apply nth_firstn; lia.
+  Qed.
+
   Lemma Drop_spec : forall (m : nat) (l : list X),
       RepEq (interp (Drop m) [of_list d l] d) (of_list d (skipn m l)).
   Proof.
-    intros m l. unfold interp, of_list, RepEq. unfold_morphism; unfold env in *; simpl in *.
-    - rewrite skipn_length. auto.
-    - rewrite nth_skipn.
-      destruct (Nat.ltb_spec (i + m) (length l)); auto; lia.
+    intros m l; spec.
+    - apply len_skipn.
+    - rewrite len_skipn in Hi. split; [lia |]. apply nth_skipn.
+  Qed.
+
+  Lemma Lastk_spec : forall (k : nat) (l : list X),
+      RepEq (interp (Lastk k) [of_list d l] d) (of_list d (skipn (length l - k) l)).
+  Proof.
+    intros k l; spec.
+    - rewrite len_skipn; arith.
+    - rewrite len_skipn in Hi. split; [lia |]. apply nth_skipn.
+  Qed.
+
+  (** Rotation: the first element moves to the back ... *)
+  Lemma Rot_spec : forall l : list X,
+      RepEq (interp Rot [of_list d l] d) (of_list d (skipn 1 l ++ firstn 1 l)).
+  Proof.
+    intros l; spec.
+    - rewrite len_app, len_skipn, len_firstn; lia.
+    - rewrite len_app, len_skipn, len_firstn in Hi.
+      destruct (le_lt_dec (length l - 1 - i) 0).
+      + split; [lia |]. rewrite app_nth2 by (rewrite len_skipn; lia).
+        rewrite len_skipn, nth_firstn by lia. f_equal; lia.
+      + split; [lia |]. rewrite app_nth1 by (rewrite len_skipn; lia).
+        rewrite nth_skipn. reflexivity.
+  Qed.
+
+  (** ... and unrotation moves the last element to the front. *)
+  Lemma Unrot_spec : forall l : list X,
+      RepEq (interp Unrot [of_list d l] d)
+            (of_list d (skipn (length l - 1) l ++ firstn (length l - 1) l)).
+  Proof.
+    intros l; spec.
+    - rewrite len_app, len_skipn, len_firstn; lia.
+    - rewrite len_app, len_skipn, len_firstn in Hi.
+      destruct (le_lt_dec (i - 0) 0).
+      + split; [lia |]. rewrite app_nth1 by (rewrite len_skipn; lia).
+        rewrite nth_skipn. f_equal; lia.
+      + split; [lia |]. rewrite app_nth2 by (rewrite len_skipn; lia).
+        rewrite len_skipn, nth_firstn by lia. f_equal; lia.
   Qed.
 
   Lemma App_spec : forall xs ys : list X,
       RepEq (interp App [of_list d xs; of_list d ys] d) (of_list d (xs ++ ys)).
   Proof.
     intros xs ys. unfold interp, of_list, RepEq. unfold_morphism; unfold env in *; simpl in *.
-    - rewrite app_length. auto.
+    - rewrite len_app. auto.
     - destruct (Nat.ltb_spec i (length xs)).
       + rewrite app_nth1; auto.
       + rewrite app_nth2 by auto.
@@ -310,7 +426,7 @@ Section Transfer.
       in_range 1 m -> RepEq a a' -> RepEq (interp m [a] d) (interp m [a'] d).
   Proof.
     intros m [n g] [n' g'] Hm [H1 H2]; simpl in *; subst n'.
-    assert (He : env [(n, g')] = env [(n, g)]) by reflexivity.
+    assert (He : env [((n, g') : Rep X)] = env [((n, g) : Rep X)]) by reflexivity.
     unfold interp, RepEq; simpl. rewrite He. split; auto.
     intros i Hi.
     assert (Hr := Hm _ i Hi). simpl in Hr. unfold env in Hr at 2; simpl in Hr.
@@ -323,7 +439,8 @@ Section Transfer.
       RepEq (interp m [a; b] d) (interp m [a'; b'] d).
   Proof.
     intros m [n1 g1] [n1' g1'] [n2 g2] [n2' g2'] Hm [H1 H2] [H3 H4]; simpl in *; subst n1' n2'.
-    assert (He : env [(n1, g1'); (n2, g2')] = env [(n1, g1); (n2, g2)]) by reflexivity.
+    assert (He : env [((n1, g1') : Rep X); ((n2, g2') : Rep X)]
+                 = env [((n1, g1) : Rep X); ((n2, g2) : Rep X)]) by reflexivity.
     unfold interp, RepEq; simpl. rewrite He. split; auto.
     intros i Hi.
     assert (Hr := Hm _ i Hi). simpl in Hr. unfold env in Hr at 2 3; simpl in Hr.

@@ -1,0 +1,22 @@
+# Coq / Rocq build products
+*.vo
+*.vok
+*.vos
+*.glob
+*.aux
+.*.aux
+.lia.cache
+.nia.cache
+CoqMakefile
+CoqMakefile.conf
+.CoqMakefile.d
+
+# LaTeX build products
+article/*.log
+article/*.out
+article/*.toc
+article/*.synctex.gz
+article/*.fls
+article/*.fdb_latexmk
+article/*.bbl
+article/*.blg

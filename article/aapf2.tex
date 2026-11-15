@@ -14,6 +14,7 @@
 \usepackage{enumitem}
 \usepackage[margin=2.6cm]{geometry}
 \usepackage[hidelinks]{hyperref}
+\setlength{\emergencystretch}{2em}
 
 % ---------------------------------------------------------------------------
 % Macros
@@ -30,7 +31,6 @@
 \newcommand{\jmeq}{\mathrel{\stackrel{\mathit{jm}}{=}}}
 \newcommand{\eqmor}{\mathrel{\stackrel{\mathit{eqmor}}{=}}}
 \newcommand{\monus}{\mathbin{\dot{-}}}
-\newcommand{\todo}[1]{{\color{red}\textbf{[TODO: #1]}}}
 \newcommand{\coq}[1]{\texttt{#1}}
 \newcommand{\fn}[1]{\ensuremath{\mathit{#1}}}
 \newcommand{\rev}{\ensuremath{\mathit{rev}}}
@@ -68,7 +68,7 @@
     \texttt{rawle.prince@tucan-analytics.com}. The arithmetic part of this work originates in the
     author's doctoral research, supported by a departmentally funded studentship in the School of
     Computer Science, University of Nottingham (2006--2010).}}
-\date{October 2026}
+\date{November 2026}
 
 \begin{document}
 \maketitle
@@ -84,7 +84,7 @@ finite types.  We show that the behaviour of the dependently typed position maps
 captured by functions on the natural numbers, and that when both shape and position maps
 are definable in Presburger arithmetic, equality of polymorphic functions reduces to the
 validity of universally quantified formulae of Presburger arithmetic, which is decidable.
-The procedure is implemented as a Coq tactic that discharges the standard identities
+The procedure is implemented as a Coq tactic that proves the standard identities
 between list functions (reversal, appending, taking, dropping, rotation, \ldots) without
 induction, each in a fraction of a second.
 
@@ -92,14 +92,19 @@ We then develop a second reading of the same mathematics.  A container is also t
 of an \emph{interface}: the moves an agent can emit and, for each move,
 the responses it accepts.  Container morphisms are then \emph{adapters} between
 interfaces (dependent lenses), and the composition of adapters is the composition of
-container morphisms.  Interfaces whose shape is a count --- batches of tool calls,
-context windows, ranked candidate lists --- are list-shaped, and the adapters between
-them are exactly the list morphisms that our procedure decides.  We show that arithmetic
-equality of adapters implies behavioural equality of every agent wrapped by them, that
-losslessness (cartesianness) of an adapter is decidable, and we verify, and in two
-cases refute, invariants of sliding context windows and of fan-out/fan-in routing.  The
-accompanying Coq development is new, self-contained and axiom-free.
+container morphisms.  Interfaces whose moves are lists --- batches of tool calls,
+context windows, ranked candidate lists --- are list-shaped, and the adapters that
+truncate, reorder, split and merge them are list morphisms of the kind our procedure
+decides.  We show that arithmetic equality of adapters implies equality of the behaviour
+of every agent wrapped by them, that losslessness (cartesianness) of an adapter is
+decidable, and that both properties lift from bare lists to lists of typed items and
+transfer to tree-shaped plans along the flattening morphism.  We verify, and in two
+cases refute, invariants of sliding context windows and of fan-out/fan-in routing.  All
+results are mechanised in a self-contained, axiom-free Coq development.
 \end{abstract}
+
+\noindent\textbf{Keywords:} containers, polynomial functors, dependent lenses,
+polymorphism, Presburger arithmetic, decision procedures, agent interfaces, Coq.
 
 % ===========================================================================
 \section{Introduction}\label{sec:intro}
@@ -113,9 +118,9 @@ is based on the representation of data types as \emph{containers}
 concrete data type by two pieces of information: the \emph{shapes} that values of the
 type can take, and, for each shape, the set of \emph{positions} at which data are stored.
 A list, for instance, has as shape its length $n$ and as positions the $n$ slots
-$0,\dots,n-1$; a binary tree has as shape a tree with no data in it, and as positions the
-nodes of that tree.  A value of the type is then a shape together with an assignment of a
-datum to each position.
+$0,\dots,n-1$; a binary tree with data at its leaves has as shape the tree with the data
+erased, and as positions the leaves of that tree.  A value of the type is then a shape
+together with an assignment of a datum to each position.
 
 Earlier presentations of container theory used the language of category theory
 \cite{AbbottAltenkirchGhani03,AbbottAltenkirchGhani05} and investigated its applications
@@ -168,40 +173,46 @@ the identities of Figure~\ref{fig:properties} automatically.
 
 \subsection{Contribution: typed agent interfaces}
 
-The second contribution was prompted by an observation of Ghani \cite{GhaniPodcast26}.  
-An \emph{AI agent} responds to prompts: it has a type of
-possible outputs (moves, tool calls, messages) and, for each output, a type of inputs it
-is prepared to receive next.  That is a container.  The whole theory of containers ---
-and its continuation as the theory of polynomial functors by Spivak and
-Niu \cite{Spivak20,NiuSpivak24} --- therefore applies to the \emph{interfaces} of agents.
-In particular, a container morphism $\cont{S}{P} \lens \cont{S'}{P'}$ is a protocol
+The second contribution was prompted by an observation of Ghani \cite{GhaniPodcast26}.
+An \emph{AI agent} responds to prompts: there is a type of prompts and, for every prompt,
+a type of possible responses --- and that is a container.  The whole theory of containers
+--- and its continuation as the theory of polynomial functors by Spivak and
+Niu \cite{Spivak20,NiuSpivak25} --- therefore applies to the \emph{interfaces} of agents.
+The same container can be read from either side of an interface.  The party that answers
+sees a prompt arrive and must produce a response of the type that the prompt dictates; the
+party that asks emits a \emph{move} and then accepts a response whose type depends on the
+move.  We take the second reading as primary, because it is the one in which a stateful
+agent is a coalgebra (\S\ref{sec:agents}), and we call the answering party the
+\emph{environment}; nothing depends on the choice, because the notion of morphism is the
+same.  A container morphism $\cont{S}{P} \lens \cont{S'}{P'}$ is a protocol
 \emph{adapter}: it translates the moves of one interface into those of another
 (covariantly) and routes responses back (contravariantly).  In the terminology of
-\cite{NiuSpivak24} it is a \emph{dependent lens}.  Composition of adapters is composition
+\cite{NiuSpivak25} it is a \emph{dependent lens}.  Composition of adapters is composition
 of container morphisms, and wrapping an agent by an adapter is the extension of the
 container morphism applied to the agent's one-step behaviour.
 
-Most of today's agentic systems are untyped: an LLM has, as Ghani puts it, type
-``string to string'', and orchestration frameworks pass around lists of messages and
-JSON objects whose shapes are checked, if at all, at run time.  A \emph{typed} agentic
-system, of the kind being built at Kodamai \cite{KodamaiEEJ26,GhaniPodcast26}, assigns
-container types to interfaces and composes agents along typed adapters.  Once that is
-done, a familiar dividend of types becomes available: to check that two ways of wiring a
-system agree, or that an adapter preserves information, one checks the types and the
-adapters, not the agents.
+Most of today's agentic systems are untyped: a language model has, as Ghani puts it, the
+type $\fn{String} \to \fn{String}$, and orchestration frameworks pass around lists of
+messages and JSON objects whose shapes are checked, if at all, at run time.  A
+\emph{typed} agentic system, of the kind being built at Kodamai
+\cite{KodamaiEEJ26,GhaniPodcast26}, assigns container types to interfaces and composes
+agents along typed adapters.  Once that is done, a familiar dividend of types becomes
+available: to check that two ways of wiring a system agree, or that an adapter preserves
+information, one checks the types and the adapters, not the agents.
 
 Here is where the first contribution meets the second.  A great many agent interfaces are
-\emph{list-shaped}: an orchestrator that fans out $n$ tool calls and fans in $n$
+\emph{list-shaped}: an orchestrator that fans out $n$ tool calls and collects their
 results; a conversation whose context is a window over a history of length $n$; a
 retriever that returns $k$ ranked documents.  Adapters between list-shaped interfaces
-are list morphisms --- truncate, drop the oldest, reverse the ranking, split and merge a
-batch --- and they are exactly the Presburger-definable morphisms of
+are built from list morphisms --- truncate, drop the oldest, reverse the ranking, split
+and merge a batch --- and these are Presburger-definable morphisms in the sense of
 \S\ref{sec:arith}.  Consequently, (i) equality of two adapter pipelines is decidable;
 (ii) losslessness of an adapter (no response dropped or duplicated) is decidable; and
-(iii) by functoriality, an equation between adapters transfers to every agent wrapped by
-them.  We prove these facts in Coq (\S\ref{sec:agents-verif}) and verify, in well under a second,
-invariants of sliding context windows and of fan-out/fan-in routing; just as usefully,
-the procedure \emph{refutes} two plausible-looking adapter laws, exhibiting the
+(iii) an equation between adapters transfers to every agent wrapped by them: the wrapped
+agents produce the same runs against every environment.  We prove these facts in Coq
+(\S\ref{sec:agents-verif}) and verify, in well under a second each, invariants of sliding
+context windows and of fan-out/fan-in routing; just as usefully, two plausible-looking
+adapter laws are \emph{refuted}, by a verified bounded search that computes the
 counterexamples.
 
 \subsection{Relation to earlier work}
@@ -210,14 +221,15 @@ The arithmetic core (\S\ref{sec:containers}--\S\ref{sec:arith}) develops ideas f
 out in the author's thesis \cite{Prince10} and, in dependently typed form, in
 \cite{PrinceGhaniMcBride08}.  Relative to those, the decidability theorem is given a proof
 (Theorem~\ref{thm:decidable}), correctness of composition is stated and proved
-(Theorem~\ref{thm:comp}), and the accompanying Coq development has been rewritten: it is
-self-contained, axiom-free, uses \coq{lia} in place of the deprecated \coq{omega}, proves
-each identity of Figure~\ref{fig:properties} in a fraction of a second, and connects the
-container-style definitions with ordinary recursive definitions through \emph{transfer
-lemmas}, from which standard theorems about lists follow without induction
-(\S\ref{sec:coq}).\footnote{The earlier Coq sources are kept in the \texttt{legacy} folder
-of the repository given in \S\ref{sec:notation}.}  The interface reading
-(\S\ref{sec:agents} and \S\ref{sec:agents-verif}) is new.
+(Theorem~\ref{thm:comp}), the arithmetic representation is connected to container
+morphisms proper (Theorem~\ref{thm:bridge}), and the Coq development has been written
+afresh: it is self-contained, axiom-free, uses \coq{lia} in place of the retired
+\coq{omega}, proves each identity of Figure~\ref{fig:properties} in a fraction of a
+second, and connects the container-style definitions with ordinary recursive definitions
+through \emph{transfer lemmas}, from which standard theorems about lists follow without
+induction (\S\ref{sec:coq}).\footnote{The Coq sources that accompanied \cite{Prince10} are
+kept in the \texttt{legacy} folder of the repository given in \S\ref{sec:notation}.}  The
+interface reading (\S\ref{sec:agents} and \S\ref{sec:agents-verif}) is new.
 
 \subsection{Notation and conventions}\label{sec:notation}
 
@@ -235,11 +247,9 @@ Cut-off subtraction on $\N$, written $n \monus m$ and equal to $0$ when $m \ge n
 the subtraction of Coq's \coq{nat}.  Lists are indexed from $0$ throughout.
 
 \paragraph{Accompanying development.}  All definitions and results marked
-\textsf{[Coq]} are formalised in the development (directory \texttt{theories/}) at 
-%\begin{center} % need to update this 
-  \url{https://github.com/tucananalytics/AAPP}
-%\end{center}
-of which \S\ref{sec:coq} gives an overview.
+\textsf{[Coq]} are formalised in the development (directory \texttt{theories/}) at
+\url{https://github.com/tucananalytics/AAPP}, of which \S\ref{sec:coq} gives an overview.
+Results not so marked are stated and proved in the text only.
 
 % ===========================================================================
 \section{Containers}\label{sec:containers}
@@ -291,9 +301,9 @@ representation of lists that container theory produces.
 We sometimes write a container in pointwise form, $(s : S \triangleleft P\,s)$, to make
 the shape variable explicit.  The \emph{list container} is
 $(n : \N \triangleleft \Fin\,n)$: a shape is a length and the positions of a list of
-length $n$ are its $n$ slots.  The container of binary trees has as shapes the trees with
-no data %(the type $\fn{Btree}\,\mathbf{1}$) 
-and as positions, for each such tree, its nodes.
+length $n$ are its $n$ slots.  The container of binary trees with data at the leaves has
+as shapes the trees with the data erased and as positions, for each such tree, its leaves
+\cite{AbbottAltenkirchGhaniMcBride04}; we return to it in \S\ref{sec:trees}.
 
 \begin{definition}[Extension]\label{def:extension}
   The \emph{extension} of a container $\cont{S}{P}$ is the functor
@@ -390,8 +400,9 @@ $g\,(f_s\,p)$ found at the input position $f_s\,p$.
     \fn{top}_{S\,n} &= \fn{fs}\,\fn{top}_n & \fn{emb}\,(\fn{fs}\,i) &= \fn{fs}\,(\fn{emb}\,i).
   \end{align*}
   Every element of $\Fin(S\,n)$ is either $\fn{top}_n$ or $\fn{emb}\,i$ for a unique $i$;
-  this is the \emph{view} \cite{McBride00,McBrideMcKinna04} used in the Coq code of
-  \S\ref{sec:coq}.
+  this is a \emph{view} of $\Fin$ in the sense of \cite{McBride00,McBrideMcKinna04}, on
+  which the dependently typed developments of \cite{PrinceGhaniMcBride08,Prince10} rely.
+  The representation of \S\ref{sec:arith} does without it.
 \end{example}
 
 \begin{example}[Tail]\label{ex:tail}
@@ -407,8 +418,8 @@ $g\,(f_s\,p)$ found at the input position $f_s\,p$.
 
 A cartesian morphism rearranges data without loss or duplication; $\fn{crev}$ is
 cartesian, $\fn{ctail}$ is not.  Note that cartesianness constrains the \emph{position}
-maps only; the shape map $u$ may well fail to be injective (\S\ref{sec:conclusion}
-returns to this point).
+maps only; the shape map $u$ may well fail to be injective
+(Proposition~\ref{prop:flatten} gives an example).
 
 \begin{definition}[Composition]\label{def:comp}
   Given $(u_1, f_1) : \cont{S}{P} \lens \cont{S'}{P'}$ and
@@ -419,8 +430,9 @@ returns to this point).
 
 Shapes are mapped forwards through $u_1$ then $u_2$; a position of the final output is
 routed backwards through $f_2$ then $f_1$.  Containers and container morphisms form a
-category $\Cont$ \cite{AbbottAltenkirchGhani05}, and $\mmap$ respects composition and
-identities (\textsf{[Coq]} \coq{mmap\_comp}, \coq{mmap\_id}).
+category $\Cont$ \cite{AbbottAltenkirchGhani05}; $\mmap$ respects composition and
+identities (\textsf{[Coq]} \coq{mmap\_comp}, \coq{mmap\_id}), and the composite of
+cartesian morphisms is cartesian (\textsf{[Coq]} \coq{cartesian\_comp}).
 
 \subsection{The representation theorem and equality}\label{sec:rep-eq}
 
@@ -430,12 +442,13 @@ identities (\textsf{[Coq]} \coq{mmap\_comp}, \coq{mmap\_id}).
   $\ext{\cont{S}{P}} \to \ext{\cont{S'}{P'}}$.
 \end{theorem}
 
-Categorically the theorem is an instance of the Yoneda lemma, and it says that
+Categorically the theorem is a consequence of the Yoneda lemma, and it says that
 $T : \Cont \to [\Set, \Set]$ is a full and faithful embedding.  For us it says two things.
 First, \emph{every} polymorphic function between lists is of the form
 $\mmap\,(u, f)$, so nothing is lost by working with shape and position maps.  Second,
-two container morphisms with the same extension are equal, so an equation between
-polymorphic functions can be proved by proving an equation between container morphisms.
+two polymorphic functions are equal exactly when their container morphisms are, so
+proving equations between container morphisms is not only a sound way to prove equations
+between polymorphic functions but a complete one.
 (The core theory, including this theorem, was formalised in Coq in \cite[Ch.~4]{Prince10}.)
 
 Stating the equality requires some care.  Two container morphisms
@@ -495,11 +508,11 @@ This section explains how the material of \S\ref{sec:containers} is read as a th
 typed interfaces for AI agents.  Everything here is elementary; the point is to fix
 definitions precisely enough that the verification results of \S\ref{sec:agents-verif}
 can be stated.  The development owes much to Spivak and Niu's account of polynomial
-functors as a ``mathematical theory of interaction'' \cite{Spivak20,NiuSpivak24}; polynomial
+functors as a ``mathematical theory of interaction'' \cite{Spivak20,NiuSpivak25}; polynomial
 functors and containers are the same objects, and a container morphism is what
-\cite{NiuSpivak24} calls a dependent lens.
+\cite{NiuSpivak25} calls a dependent lens.
 
-\subsection{Interfaces}
+\subsection{Interfaces}\label{sec:interfaces}
 
 \begin{definition}[Interface]\label{def:interface}
   An \emph{interface} is a container $I = \cont{S}{P}$, read as follows: $S$ is the type
@@ -507,43 +520,54 @@ functors and containers are the same objects, and a container morphism is what
   $P\,s$ is the type of \emph{responses} (inputs) the agent accepts after emitting $s$.
 \end{definition}
 
-In the notation of \cite{NiuSpivak24} the interface is the polynomial
-$\sum_{s:S} y^{P\,s}$.  Some examples:
+In the notation of \cite{NiuSpivak25} the interface is the polynomial
+$\sum_{s:S} y^{P\,s}$.  The definition takes the point of view of the party that moves
+first.  The party on the other side of the interface, which we call the
+\emph{environment}, receives a move and must answer with a response of the type that the
+move dictates; that is the point of view of Ghani's observation in \S\ref{sec:intro}, in
+which the moves are prompts.  A component of a larger system typically plays both parts,
+answering on one interface and asking on others.  Some examples:
 
 \begin{itemize}[leftmargin=1.5em]
-\item An untyped language model has interface $(\fn{String} \triangleleft \lambda\_.\,\fn{String})$:
-  it emits a string and accepts any string in return.  %This is Ghani's ``string to string'' \cite{GhaniPodcast26}: not false, but uninformative.
+\item An untyped language model is an environment for the interface
+  $(\fn{String} \triangleleft \lambda\_.\,\fn{String})$: a string is sent, and any string
+  may come back.
 \item A tool-calling agent has interface $(\fn{Req} \triangleleft \fn{Res})$: it emits a
   request $r : \fn{Req}$ (a tool name with typed arguments) and accepts a result of the
   type $\fn{Res}\,r$ \emph{determined by that request}.  The dependency is the whole point:
   the response type depends on the move.  This is what structured-output and tool-use
   schemas \cite{OpenAIStructured24,MCP24} enforce at the boundary of an LLM.
-\item A \emph{batch} interface is the list container $(n : \N \triangleleft \Fin\,n)$: the
-  agent emits a batch of $n$ items and accepts a response \emph{per item}.  More generally
-  a batch of typed requests is the container %$\List \circ (\fn{Req} \triangleleft \fn{Res})$,
- $(\mathbf{r} :  \fn{Req}^m \triangleleft \fn{Res}\,r_1 + \ldots + \fn{Res}\,r_m)$,
-  whose shapes are tuples of requests and whose positions are the result slots, each typed by its request.
-\item A \emph{context window} over a history is list-shaped too: the shape is the
-  length of the history the agent exposes, and positions are the turns within it.
+\item The \emph{list interface} is the list container $(n : \N \triangleleft \Fin\,n)$:
+  the agent emits a batch of $n$ items, and a response \emph{selects one of them} by its
+  slot.  A ranked list of $n$ candidates from which the environment picks one is the
+  typical case; \S\ref{sec:listshaped} adds data to the items and types to the responses.
 \item A \emph{plan} is tree-shaped: a planner that decomposes a task into sub-tasks,
-  recursively, emits a tree whose leaves are the atomic sub-tasks, and expects a result
-  for each leaf.  Its interface is the container of trees (\S\ref{sec:trees}).
-\item An \emph{aggregator} that receives the batches of $k$ sub-agents and presents them
-  as one batch has an interface with $k$ counts for its shape; adapters out of it are the
-  arity-$k$ morphisms of \S\ref{sec:arith}, of which $\app$ is the simplest.
+  recursively, emits a tree whose leaves are the atomic sub-tasks, and a response
+  concerns one of the leaves (\S\ref{sec:trees}).
 \end{itemize}
 
-Interfaces compose.  If $I$ and $J$ are interfaces then so is their product (emit a move
-of each, accept a response to each), their sum (emit a move of one or the other), and
-their composite $I \circ J$ (emit an $I$-move whose positions are filled with $J$-moves);
-containers are closed under all of these \cite{AbbottAltenkirchGhani05}, and so are
-polynomial functors \cite{NiuSpivak24}.  
-%A batch of typed tool calls is the composite $\List \circ (\fn{Req} \triangleleft \fn{Res})$ of the 
-%batch interface with the tool-calling interface, which is the container displayed above.
+Interfaces can be combined.  If $I = \cont{S}{P}$ and $J = \cont{S'}{P'}$ are interfaces,
+then so are
+\begin{itemize}[leftmargin=1.5em]
+\item their sum $I + J$: emit a move of one or the other, and accept a response to it;
+\item their product
+  $I \times J = ((s,s') : S \times S' \triangleleft P\,s + P'\,s')$: emit a move of each,
+  and accept a response to one of the two;
+\item their parallel product
+  $I \otimes J = ((s,s') : S \times S' \triangleleft P\,s \times P'\,s')$: emit a move of
+  each, and accept a response to both; and
+\item their composite
+  $I \circ J = ((s,h) : \sum_{s:S} (P\,s \to S') \triangleleft \sum_{p : P\,s} P'\,(h\,p))$:
+  emit an $I$-move whose positions carry $J$-moves; a response answers the $I$-move and
+  then the $J$-move found at the position it chose.
+\end{itemize}
+Containers are closed under all of these
+\cite{AbbottAltenkirchGhani05,NiuSpivak25}, and
+$\ext{I \circ J} \cong \ext{I} \circ \ext{J}$.
 
 The extension $\ext{I}\,X$ (Definition~\ref{def:extension}) has a natural reading as well:
 an element $(s, g)$ of $\ext{I}\,X$ is a move $s$ together with a \emph{continuation}
-$g : P\,s \to X$ that says what to do with each possible response.  For the batch
+$g : P\,s \to X$ that says what to do with each possible response.  For the list
 interface, $(n, g)$ is a batch of $n$ slots each filled with an $X$ --- a list.  Both
 readings are used below.
 
@@ -562,7 +586,7 @@ to the move $u\,s$ back into a response that the $I$-agent understands
 nature of protocols: an adapter that sits between an agent and its environment must
 translate outgoing traffic forwards and incoming traffic backwards.  No ``lens laws'' are
 imposed; the adapters of interest are rarely well-behaved in the sense of bidirectional
-programming, and none is needed.
+programming \cite{FosterEtAl07}, and none is needed.
 
 \begin{figure}[t]
   \centering
@@ -574,28 +598,32 @@ programming, and none is needed.
     \draw[->] ([yshift=4mm]ad.east) -- node[above] {$u\,s : S'$} ([yshift=4mm]env.west);
     \draw[<-] ([yshift=-4mm]agent.east) -- node[below] {$f_s\,p : P\,s$} ([yshift=-4mm]ad.west);
     \draw[<-] ([yshift=-4mm]ad.east) -- node[below] {$p : P'(u\,s)$} ([yshift=-4mm]env.west);
-    \node[font=\footnotesize] at (4.2,1.3) {interface $I$ \hfill\quad interface $J$};
+    \node[font=\footnotesize] at (2.1,1.25) {interface $I$};
+    \node[font=\footnotesize] at (6.3,1.25) {interface $J$};
   \end{tikzpicture}
   \caption{An adapter $(u,f) : I \lens J$ translates moves forwards and responses
-    backwards.  Seen from the environment, the adapted agent has interface $J$.}
+    backwards.  Seen from the environment, the adapted agent has interface $J$; seen from
+    the agent, the adapted environment serves interface $I$.}
   \label{fig:lens}
 \end{figure}
 
 \begin{example}\label{ex:adapters}
   (i)~\emph{Reversal of a ranking.}  A retriever exposes $k$ candidates best-first; a
   consumer expects worst-first.  The adapter is $\fn{crev}$ (Example~\ref{ex:rev}): the
-  batch is re-indexed, and a response to candidate $i$ in the consumer's numbering is
-  routed to candidate $k - i - 1$ in the retriever's.
+  batch is re-indexed, and the consumer's choice of candidate $i$ is routed to candidate
+  $k - i - 1$ in the retriever's numbering.
   (ii)~\emph{Context window.}  An agent exposes a history of length $n$ to a model that
   accepts at most $k$ turns.  The adapter $\lastk$ has shape map
   $u\,n = \min(n,k)$ and position map $f_n\,i = i + (n \monus k)$: window position $i$
-  is history position $i + (n - k)$ when $n > k$, and $i$ otherwise.
+  is history position $i + (n - k)$ when $n > k$, and $i$ otherwise.  A reference by the
+  model to turn $i$ of what it was shown is thereby translated into a reference to the
+  right turn of the history.
   (iii)~\emph{Fan-out and fan-in.}  An orchestrator splits a batch of $n$ requests at
   index $m$, dispatches the two parts, and reassembles the results.  Splitting is the pair
   of adapters $\fn{take}_m$, $\fn{drop}_m$; reassembly is $\app$.
 \end{example}
 
-\subsection{Agents, wrapping, and compositional verification}
+\subsection{Agents, wrapping, and compositional verification}\label{sec:wrapping}
 
 \begin{definition}[Agent]\label{def:agent}
   An \emph{agent} with interface $I$ and state type $X$ is a coalgebra of the extension
@@ -608,11 +636,20 @@ programming, and none is needed.
 \end{definition}
 
 This is the familiar notion of a Moore machine with a dependently typed input alphabet,
-and it is precisely a lens $X\,y^X \to I$ in the sense of \cite{NiuSpivak24}.  Running an
-agent against an environment strategy $e : \prod_{s} P\,s$ (which picks a response to
-every move) produces the sequence of moves
-$\fn{readout}\,x_0, \fn{readout}\,x_1, \dots$ with $x_{j+1} = \fn{update}\,x_j\,(e\,(\fn{readout}\,x_j))$
-(\textsf{[Coq]} \coq{run}).
+and it is precisely a lens $X\,y^X \to I$ in the sense of \cite{NiuSpivak25}.  An
+\emph{environment} for $I$ with state type $E$ is a function
+\[
+  e : E \to \textstyle\prod_{s:S}\, \mathbf{1} + (P\,s \times E)
+\]
+which, in each of its states, answers a move with a response and a next state, or
+declines; it must decline a move that admits no response, such as the empty batch of the
+list interface.  The state of the environment is whatever it remembers of the
+interaction: a tool server may be stateless, a language model with a conversation is
+not.  Running an agent from state $x_0$ against an environment in state $w_0$ produces
+the sequence of moves $\fn{readout}\,x_0, \fn{readout}\,x_1, \dots$, where
+$e\,w_j\,(\fn{readout}\,x_j) = (p_j, w_{j+1})$ and $x_{j+1} = \fn{update}\,x_j\,p_j$, and
+it ends when the environment declines (\textsf{[Coq]} \coq{Env}, \coq{run}).  The run is
+what the environment observes of the agent.
 
 \begin{definition}[Wrapping]\label{def:wrap}
   Given an adapter $m : I \lens J$ and an agent $a : X \to \ext{I}\,X$, the
@@ -620,11 +657,11 @@ $\fn{readout}\,x_0, \fn{readout}\,x_1, \dots$ with $x_{j+1} = \fn{update}\,x_j\,
 \end{definition}
 
 That is, the wrapped agent emits the move $u\,(\fn{readout}\,x)$ and, on response $p$,
-moves to the state $\fn{update}\,x\,(f\,(\fn{readout}\,x)\,p)$.  Three properties follow immediately from the
-corresponding properties of $\mmap$; in the development they are the lemmas
-\coq{wrap\_id}, \coq{wrap\_comp} and \coq{wrap\_ext\_eq}.
+moves to the state $\fn{update}\,x\,(f\,(\fn{readout}\,x)\,p)$.  The following properties
+are immediate from the corresponding properties of $\mmap$.
 
 \begin{proposition}[Compositionality of wrapping]\label{prop:wrap}
+  \textsf{[Coq: \coq{wrap\_id}, \coq{wrap\_comp}, \coq{wrap\_ext\_eq}, \coq{run\_wrap\_pull}]}
   \leavevmode
   \begin{enumerate}[label=(\roman*),leftmargin=2em]
   \item $\fn{wrap}\,\fn{id}\,a = a$.
@@ -632,6 +669,11 @@ corresponding properties of $\mmap$; in the development they are the lemmas
   \item If $\mmap\,m$ and $\mmap\,m'$ agree on the one-step behaviour of $a$, then
     $\fn{wrap}\,m\,a$ and $\fn{wrap}\,m'\,a$ produce the same run against every
     environment, for every number of steps.
+  \item An adapter $m = (u,f) : I \lens J$ also acts on environments, in the opposite
+    direction: an environment $e$ for $J$ yields the environment $m^{*}e$ for $I$ that
+    answers the move $s$ with $f_s\,p$, where $p$ is the answer of $e$ to $u\,s$.
+    Running $\fn{wrap}\,m\,a$ against $e$ and running $a$ against $m^{*}e$ are the same
+    interaction: the first run is the image of the second under $u$.
   \end{enumerate}
 \end{proposition}
 
@@ -641,39 +683,183 @@ Item (iii) is the ``trustworthiness'' dividend: to establish that two wirings of
 have the same behaviour, it suffices to establish an equation between adapters, which by
 Theorem~\ref{thm:rep} is an equation between shape and position maps.  Nothing need be
 known about the agent itself --- in particular nothing about the language model that may
-sit inside it.  We are, with Ghani \cite{GhaniPodcast26}, verifying the plumbing, not the
-engine.
+sit inside it, or inside the environment.  We are, with Ghani \cite{GhaniPodcast26},
+verifying the plumbing, not the engine.  Item (iv) reconciles the two readings of an
+interface: it makes no difference whether an adapter is regarded as part of the agent or
+as part of the environment.
+
+\subsection{List-shaped interfaces and lifting}\label{sec:listshaped}
+
+The moves of the list interface are bare numbers: a batch of $n$ items of which nothing
+more is said.  In practice the items carry data and expect typed answers, and the
+interface is a composite.
+
+\begin{definition}[List-shaped interface]\label{def:listshaped}
+  Let $K = \cont{S_K}{P_K}$ be an interface, the \emph{item interface}.  The interface of
+  \emph{batches of $K$-items} is the composite of the list container with $K$,
+  \[
+    \List \circ K \;=\; \big((n,k) : \textstyle\sum_{n:\N} (\Fin\,n \to S_K)
+       \;\triangleleft\; \textstyle\sum_{i:\Fin\,n} P_K\,(k\,i)\big).
+  \]
+  A move is a list $k_0, \dots, k_{n-1}$ of $K$-moves; a response is a slot $i$ together
+  with a $K$-response to the item $k_i$ in that slot.  An interface is
+  \emph{list-shaped} if it is of this form.
+\end{definition}
+
+A batch of tool calls is $\List \circ (\fn{Req} \triangleleft \fn{Res})$: the agent emits
+$n$ requests and the environment returns the result of one of them, tagged with its slot.
+This is how results are returned in tool-use protocols, where each result carries the
+identifier of the call it answers \cite{OpenAIStructured24,MCP24}; an environment that
+answers all $n$ calls does so in $n$ rounds.  A conversation history offered to a model
+is $\List \circ (\fn{Turn} \triangleleft \mathbf{1})$: a list of turns, in which a
+response refers to one turn by its position (to cite it, or to regenerate from it).  A
+list of ranked candidates is $\List \circ (\fn{Doc} \triangleleft \mathbf{1})$.  The list
+interface itself is $\List \circ (\mathbf{1} \triangleleft \mathbf{1})$.  The list
+morphisms of \S\ref{sec:containers} act on all of these at once.
+
+\begin{proposition}[Lifting]\label{prop:lifting}
+  \textsf{[Coq: \coq{cComp}, \coq{whisker}]}
+  Let $m = (u, f) : (\N \triangleleft \Fin) \lens (\N \triangleleft \Fin)$ be a container
+  morphism and $K$ an interface.  The \emph{lifting}
+  $m \cdot K : \List \circ K \lens \List \circ K$ of $m$ has
+  \[
+    \text{shape map}\quad (n, k) \longmapsto (u\,n,\; k \circ f_n)
+    \qquad\text{and position map}\quad (j, r) \longmapsto (f_n\,j,\; r) .
+  \]
+  \begin{enumerate}[label=(\roman*),leftmargin=2em]
+  \item Lifting preserves identities and composition:
+    $(m_2 \circ m_1) \cdot K = (m_2 \cdot K) \circ (m_1 \cdot K)$
+    (\coq{whisker\_comp}).
+  \item Under the isomorphism $\ext{\List \circ K}\,X \cong \List\,(\ext{K}\,X)$, the
+    extension of $m \cdot K$ is the polymorphic function $\mmap\,m$ at the type
+    $\ext{K}\,X$ (\coq{whisker\_assoc}).
+  \item Consequently, if $m$ and $m'$ are equal in the sense of
+    Definition~\ref{def:eqmor}, then $m \cdot K$ and $m' \cdot K$ send every batch to the
+    same list of items, each with the same continuation (\coq{cmorEq\_whisker}).
+  \end{enumerate}
+  Moreover $m \cdot K$ is cartesian whenever $m$ is.  The same construction lifts a
+  morphism $C \lens C'$ between arbitrary containers to $C \circ K \lens C' \circ K$.
+\end{proposition}
+
+Lifting is the operation called \emph{application} of a container morphism to a container
+in \cite[Def.~3.8]{Prince10}; in $\Poly$ it is the action of the composition product on
+morphisms \cite{NiuSpivak25}.  The shape map of the lifting is the extension of $m$
+applied to the list of items: it is here that the polymorphic function denoted by $m$
+acts on the \emph{contents} of a batch, while its position map routes responses.  Part (iii) is what allows the rest of the paper
+to work with the bare list container: an equation proved there holds for batches of tool
+calls, of turns, and of anything else.
+
+\begin{remark}[Batches answered all at once]\label{rem:all}
+  \textsf{[Coq: \coq{lift\_all}, \coq{lossless\_all}, \coq{flatten\_all}]}
+  An agent that waits for the results of all $n$ items before it continues has an
+  interface with the moves of $\List \circ K$ but with positions
+  $\prod_{i : \Fin\,n} P_K\,(k\,i)$, one response for every item, in place of
+  $\sum_{i:\Fin\,n} P_K\,(k\,i)$.  A list morphism $(u,f)$ does not lift to this interface
+  in general: from results for the $u\,n$ items that were forwarded one cannot produce
+  results for all $n$ items unless every item was forwarded.  What is needed is a section
+  of the position maps, $g_n : \Fin\,n \to \Fin\,(u\,n)$ with $f_n \circ g_n = \fn{id}$;
+  the result for item $i$ is then the one returned in slot $g_n\,i$.  A cartesian
+  morphism has exactly one.  Losslessness is therefore more than an audit property: it
+  is the condition under which an adapter can serve an agent that fans its results in
+  together.
+\end{remark}
 
 \begin{example}[A conversational agent and its window]\label{ex:conv-agent}
-  Let the state of an agent be its history $h : \List\,\fn{Turn}$, and let its interface be
-  the batch interface $(n : \N \triangleleft \Fin\,n)$ with positions read as turns.  The
-  agent $a$ exposes its whole history ($\fn{readout}\,h = |h|$, with the $i$-th position
-  carrying the $i$-th turn in the extension) and, on receiving a response at position $i$
-  --- say a correction to turn $i$ --- updates that turn and appends the exchange.  The
-  model that serves the agent accepts at most $k$ turns.  Rather than change the agent, we
-  wrap it: $\fn{wrap}\,\lastk\,a$ exposes $\min(|h|, k)$ turns, the most recent ones, and
-  routes a response at window position $i$ to history position $i + (|h| \monus k)$ ---
-  the correct turn.  The identities of \S\ref{sec:worked} then say, for instance, that an
-  implementation which stores only the last $k$ turns and one which stores everything and
-  windows on demand present the same interface and the same behaviour to the model,
-  whatever the agent does with corrections.
+  Let the state of an agent be its history $h : \List\,\fn{Turn}$, and let its interface
+  be $\List \circ K$ with $K = (\fn{Turn} \triangleleft \mathbf{1})$.  The agent $a$
+  exposes its whole history, $\fn{readout}\,h = (|h|, \lambda i.\,h_i)$, and on receiving
+  a response at position $i$ --- a request to regenerate from turn $i$, say --- discards
+  the turns after $i$ and continues from there.  The model that serves the agent accepts
+  at most $k$ turns.  Rather than change the agent, we wrap it:
+  $\fn{wrap}\,(\lastk \cdot K)\,a$ exposes the $\min(|h|, k)$ most recent turns, with
+  their contents, and routes a response at window position $i$ to history position
+  $i + (|h| \monus k)$ --- the correct turn.  The identities of \S\ref{sec:worked} then
+  say, for instance, that windowing an agent that is already windowed changes nothing,
+  and that a window of a wider window is the narrower window, whatever the agent does
+  with the responses it receives.
 \end{example}
 
 \subsection{Tree-shaped interfaces: plans and flattening}\label{sec:trees}
 
-Not every interface is list-shaped, and the most important non-list example in agentic
-systems is the \emph{plan}.  A planner decomposes a task into sub-tasks and those into
-sub-sub-tasks; the result is a tree whose leaves are the atomic actions to be carried out,
-and the planner expects one result per leaf.  As a container, the interface of such a
-planner is
+Not every interface is list-shaped, and a prominent example in agentic systems is the
+\emph{plan}.  A planner decomposes a task into sub-tasks and those into sub-sub-tasks;
+the result is a tree whose leaves are the atomic actions to be carried out, and the
+planner expects a result for each leaf.  Trees with data at their leaves form the type
+$\fn{Btree}\,X = \mu Y.\, X + Y \times Y$ of Remark~\ref{rem:shapes}, whose container is
 \[
   \fn{Tree} \;=\; (s : \fn{TreeS} \triangleleft \fn{leaves}\,s),
+  \qquad
+  \fn{leaves}\,\fn{leaf} = \mathbf{1},\quad
+  \fn{leaves}\,(\fn{node}\,l\,r) = \fn{leaves}\,l + \fn{leaves}\,r,
 \]
-where $\fn{TreeS}$ is the type of tree skeletons (binary trees with no data, in the
-simplest case) and $\fn{leaves}\,s$ is the type of leaf positions of $s$.  Hierarchical
-delegation of this kind is studied in depth by Libkind and Spivak \cite{LibkindSpivak24},
-with polynomial functors as task--solution interfaces and lenses as delegations; here we
-need only one adapter out of it.
+where $\fn{TreeS} = \fn{Btree}\,\mathbf{1}$ is the type of tree skeletons and
+$\fn{leaves}\,s$ is the type of leaf positions of $s$.  A value of
+$\ext{\fn{Tree}}\,X$ is a skeleton together with an $X$ for each of its leaves, and the
+leaves of a skeleton occur at any depth (Figure~\ref{fig:flatten}(a), after the picture
+in \cite{AbbottAltenkirchGhaniMcBride04}).  The interface of a planner whose atomic tasks
+have interface $K$ is the composite $\fn{Tree} \circ K$, formed exactly as for lists
+(Definition~\ref{def:listshaped}).  Hierarchical delegation of this kind is studied in
+depth by Libkind and Spivak \cite{LibkindSpivak24}, with polynomial functors as
+task--solution interfaces and lenses as delegations; here we need only one adapter out of
+it.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[>={Stealth},font=\small,
+      datum/.style={circle,draw,minimum size=6mm,inner sep=0pt},
+      inode/.style={circle,fill,minimum size=1.7mm,inner sep=0pt},
+      lpos/.style={circle,draw,minimum size=2.8mm,inner sep=0pt},
+      bslot/.style={draw,rounded corners=1pt,minimum width=6mm,minimum height=6mm,inner sep=0pt}]
+    % (a) left: a tree with data at its leaves
+    \node[inode] (r) at (1.4,2.5) {};
+    \node[inode] (a) at (0.7,1.7) {};
+    \node[datum] (x3) at (2.1,1.7) {$x_3$};
+    \node[datum] (x1) at (0.1,0.8) {$x_1$};
+    \node[datum] (x2) at (1.3,0.8) {$x_2$};
+    \draw (r)--(a) (r)--(x3) (a)--(x1) (a)--(x2);
+    \node at (3.0,1.6) {$\cong$};
+    % (a) right: its shape, with leaf positions, and the assignment of data
+    \node[inode] (rs) at (5.0,2.5) {};
+    \node[inode] (as) at (4.3,1.7) {};
+    \node[lpos] (p3) at (5.7,1.7) {};
+    \node[lpos] (p1) at (3.7,0.8) {};
+    \node[lpos] (p2) at (4.9,0.8) {};
+    \draw (rs)--(as) (rs)--(p3) (as)--(p1) (as)--(p2);
+    \draw (7.6,1.5) ellipse (0.48 and 1.05);
+    \node at (8.25,2.45) {$X$};
+    \node[inner sep=1.5pt] (d3) at (7.6,2.15) {$x_3$};
+    \node[inner sep=1.5pt] (d2) at (7.6,1.5) {$x_2$};
+    \node[inner sep=1.5pt] (d1) at (7.6,0.85) {$x_1$};
+    \draw[->] (p3) to[out=20,in=180] (d3);
+    \draw[->] (p2) to[out=-10,in=190] (d2);
+    \draw[->] (p1) to[out=-50,in=205] (d1);
+    \node[font=\footnotesize] at (4.1,-1.2) {(a)};
+    % (b) flattening: batch slots to leaves
+    \node[inode] (rb) at (11.2,2.5) {};
+    \node[inode] (ab) at (10.5,1.7) {};
+    \node[lpos] (q3) at (11.9,1.7) {};
+    \node[lpos] (q1) at (9.9,0.8) {};
+    \node[lpos] (q2) at (11.1,0.8) {};
+    \draw (rb)--(ab) (rb)--(q3) (ab)--(q1) (ab)--(q2);
+    \node[bslot] (s0) at (9.9,-0.45) {$0$};
+    \node[bslot] (s1) at (11.1,-0.45) {$1$};
+    \node[bslot] (s2) at (11.9,-0.45) {$2$};
+    \draw[->] (s0) -- (q1);
+    \draw[->] (s1) -- (q2);
+    \draw[->] (s2) -- node[right,font=\footnotesize,pos=0.45] {$\fn{flat}_s$} (q3);
+    \node[font=\footnotesize,anchor=east] at (9.4,-0.45) {$\Fin\,3$};
+    \node[font=\footnotesize,anchor=east] at (10.95,2.6) {$s$};
+    \node[font=\footnotesize] at (10.9,-1.2) {(b)};
+  \end{tikzpicture}
+  \caption{(a)~A binary tree with data at its leaves is a shape --- the tree with the data
+    erased, with internal nodes~$\bullet$ and leaf positions~$\circ$ --- together with an
+    assignment of data to the positions, as in \cite{AbbottAltenkirchGhaniMcBride04}.
+    Positions occur wherever there is a leaf, at any depth.  (b)~Flattening as an adapter
+    from the tree interface to the list interface.  The shape map sends the skeleton $s$
+    to its number of leaves, $\fn{Sum}\,s = 3$; the position map $\fn{flat}_s$ sends batch
+    slot $i$ to the $i$-th leaf from the left, whatever its depth.  It is a bijection, so
+    no result is lost or duplicated.}\label{fig:flatten}
+\end{figure}
 
 The environment that executes the atomic actions --- a tool server, a pool of workers ---
 typically understands batches, not trees.  The adapter that mediates is \emph{flattening}:
@@ -684,10 +870,11 @@ typically understands batches, not trees.  The adapter that mediates is \emph{fl
 \]
 whose shape map counts the leaves and whose position map
 $\fn{flat}_s : \Fin(\fn{Sum}\,s) \to \fn{leaves}\,s$ sends the $i$-th slot of the batch to the
-$i$-th leaf in left-to-right order (Figure~\ref{fig:flatten}): if $i < \fn{Sum}\,l$ the
-slot belongs to the left subtree, otherwise slot $i - \fn{Sum}\,l$ of the right subtree.
-This is the container morphism \texttt{cflatten} of \cite[Listing~21]{Prince10}, and it
-has a property that matters for agents:
+$i$-th leaf in left-to-right order (Figure~\ref{fig:flatten}(b)): if $i < \fn{Sum}\,l$ the
+slot belongs to the left subtree, and otherwise it is slot $i - \fn{Sum}\,l$ of the right
+subtree.  This is the container morphism of the function that lists the leaves of a tree,
+called \texttt{cflatten} in \cite[Listing~21]{Prince10}, and it has a property that
+matters for agents.
 
 \begin{proposition}\label{prop:flatten}
   \textsf{[Coq: \coq{flatten}, \coq{flatten\_cartesian}, \coq{Sum\_not\_injective}]}
@@ -702,66 +889,42 @@ is delivered twice.  Non-injectivity of the shape map says that the environment 
 nothing about the \emph{structure} of the plan --- two plans with the same number of leaves
 present the same batch --- which is as it should be: the plan is the planner's business.
 Cartesianness constrains positions, not shapes, and the distinction is exactly the one
-between data (which an adapter may not lose) and structure (which it may hide).
+between data (which an adapter may not lose) and structure (which it may hide).  By
+Proposition~\ref{prop:lifting}, $\fn{flatten}$ lifts to
+$\fn{flatten} \cdot K : \fn{Tree} \circ K \lens \List \circ K$ for every item interface
+$K$, and since it has a section (the index of a leaf) it also serves planners that wait
+for all of their results (Remark~\ref{rem:all}).
 
 Flattening also connects tree-shaped interfaces to the decision procedure.  By
 Proposition~\ref{prop:wrap}(ii), a list adapter $m$ applied after flattening is the single
 adapter $m \circ \fn{flatten}$ out of the tree interface, so a planner can be windowed,
-split across workers, or re-ordered using the adapters of \S\ref{sec:arith}, and the
-identities between those adapters --- decided by \coq{containers} --- hold of the planner
-too.  In the other direction, a tree adapter $t : \fn{Tree} \lens \fn{Tree}$ (re-balancing a
-plan, say) can be compared with a list adapter $m$ through the equation
-$\fn{flatten} \circ t = m \circ \fn{flatten}$, which asks whether re-arranging the plan
-has the same effect on the batch as $m$.  Since $\fn{flatten}$ is cartesian, an $m$
-satisfying the equation is determined by $t$ wherever one exists, and the equation is then
-decidable whenever that $m$ is Presburger.  Section~\ref{sec:conclusion} returns to this.
+split across workers, or re-ordered using the adapters of \S\ref{sec:arith}; the
+identities between those adapters, proved by the tactic of \S\ref{sec:coq}, hold of the
+planner too, and a lossless list adapter after $\fn{flatten}$ is a lossless adapter out of
+the tree interface (\S\ref{sec:worked}).  In the other direction, a tree adapter
+$t : \fn{Tree} \lens \fn{Tree}$ (re-balancing a plan, say) can be compared with a list
+adapter $m$ through the equation $\fn{flatten} \circ t = m \circ \fn{flatten}$, which asks
+whether re-arranging the plan has the same effect on the batch as $m$.  Because the
+position maps of $\fn{flatten}$ are bijections they can be cancelled, so the equation
+determines $m$ from $t$ on every batch that arises from a plan.  Whether a decidable class
+of tree adapters can be identified in this way is left open (\S\ref{sec:conclusion}).
 
-\begin{figure}[t]
-  \centering
-  \begin{tikzpicture}[>={Stealth},font=\small,
-      lf/.style={circle,draw,minimum size=6mm,inner sep=0pt},
-      nd/.style={circle,draw,fill=black!10,minimum size=4mm,inner sep=0pt}]
-    \node[nd] (r) at (2,2.6) {};
-    \node[nd] (a) at (1,1.6) {};
-    \node[nd] (b) at (3,1.6) {};
-    \node[lf] (l0) at (0.4,0.6) {$\ell_0$};
-    \node[lf] (l1) at (1.6,0.6) {$\ell_1$};
-    \node[lf] (l2) at (2.4,0.6) {$\ell_2$};
-    \node[lf] (l3) at (3.6,0.6) {$\ell_3$};
-    \draw (r)--(a) (r)--(b) (a)--(l0) (a)--(l1) (b)--(l2) (b)--(l3);
-    \node[font=\footnotesize] at (2,3.2) {plan $s$ \quad ($\fn{Sum}\,s = 4$)};
-    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s0) at (7,0.6) {$0$};
-    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s1) at (7.8,0.6) {$1$};
-    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s2) at (8.6,0.6) {$2$};
-    \node[draw,rounded corners,minimum width=6mm,minimum height=6mm] (s3) at (9.4,0.6) {$3$};
-    \node[font=\footnotesize] at (8.2,1.5) {batch $\Fin\,4$};
-    \draw[->,black!60] (s0.north) to[out=120,in=20] node[pos=0.5,above,font=\scriptsize] {$\fn{flat}_s$} (l0.east);
-    \draw[->,black!60] (s1.north) to[out=125,in=15] (l1.east);
-    \draw[->,black!60] (s2.north) to[out=130,in=10] (l2.east);
-    \draw[->,black!60] (s3.north) to[out=135,in=5] (l3.east);
-    \node[font=\footnotesize,align=center] at (5.2,-0.3) {results flow back along $\fn{flat}_s$; the plan's shape is not visible on the right};
-  \end{tikzpicture}
-  \caption{Flattening as an adapter from a tree-shaped interface to the batch interface.
-    The position map sends batch slot $i$ to the $i$-th leaf; it is a bijection, so no
-    result is lost or duplicated.}\label{fig:flatten}
-\end{figure}
-
-\subsection{Borders and list-shaped interfaces}
+\subsection{Borders and scope}\label{sec:borders}
 
 An LLM produces text.  Two routes lead from text to a typed interface
 \cite{GhaniPodcast26}: change the model so that it produces structured output natively,
-or keep the model and parse its output against a schema at the boundary --- ``passport
-control''.  The second route is what structured-output APIs \cite{OpenAIStructured24}
-and tool protocols \cite{MCP24} implement today: the schema is a type, the parser is a
-checker, and a parse failure is a type error caught before it propagates.  Our concern in
-this paper is not the parser but what happens after it, once values of container types
-are flowing between components.  Nor do we claim anything about the probabilistic
-internals of the model; the agent of Definition~\ref{def:agent} is an arbitrary function
-of its state.
+or keep the model and check its output against a schema at the boundary --- ``passport
+controls'', in Ghani's metaphor.  The second route is what structured-output APIs
+\cite{OpenAIStructured24} and tool protocols \cite{MCP24} implement today: the schema is
+a type, the parser is a checker, and a parse failure is a type error caught before it
+propagates.  Our concern in this paper is not the parser but what happens after it, once
+values of container types are flowing between components.  Nor do we claim anything about
+the probabilistic internals of the model; the agent of Definition~\ref{def:agent} is an
+arbitrary function of its state, and the environment an arbitrary function of its own.
 
 Within that scope, the observation on which \S\ref{sec:agents-verif} rests is simple:
-whenever the shape of an interface is a count --- a batch size, a window length, a number
-of candidates --- the interface is list-shaped, the adapters between such interfaces are
+whenever the moves of an interface are lists --- of tool calls, of turns, of candidates
+--- the interface is list-shaped, the adapters that rearrange such lists are liftings of
 list morphisms, and list morphisms are the subject of \S\ref{sec:arith}.
 
 % ===========================================================================
@@ -861,12 +1024,13 @@ to and from that set:
 \paragraph{How the goal evolves.}  Observation~\ref{obs:two} lets us replace the second
 premise of \eqref{eq:eqpairs} by arithmetic.  Suppose we have already proved $u = v$ and
 are left with the position obligation.  Table~\ref{tab:goal} traces the transformation of
-that obligation.
+that obligation; in it, $g_1$ and $g_2$ are total functions satisfying \eqref{eq:shadow}
+for $f$ and $g$ respectively.
 
 \begin{table}[t]
   \centering
   \footnotesize
-  \begin{tabular}{@{}llp{6.3cm}@{}}
+  \begin{tabular}{@{}llp{6.2cm}@{}}
     \toprule
     & Goal & Step \\
     \midrule
@@ -896,9 +1060,11 @@ container morphisms between lists can be stated as
              \forall n\,i.\; i < u\,n \to i < v\,n \to g_1\,n\,i = g_2\,n\,i}
             {(u, g_1) = (v, g_2)}
 \end{equation}
-in place of \eqref{eq:eqmor}.  We call \eqref{eq:eq16} \emph{quasi-container} equality:
-it is sound with respect to Definition~\ref{def:eqmor} (Theorem~\ref{thm:sound} below
-makes this precise), but it is stated purely in arithmetic.  If $u$, $v$, $g_1$ and $g_2$
+in place of \eqref{eq:eqmor}.  We call \eqref{eq:eq16} \emph{quasi-container} equality.
+It is stated purely in arithmetic, and it is sound: it implies that the two morphisms
+denote the same function on lists (Theorem~\ref{thm:sound}) and, for morphisms whose
+positions are in range, that they are equal as container morphisms in the sense of
+Definition~\ref{def:eqmor} (Theorem~\ref{thm:bridge}).  If $u$, $v$, $g_1$ and $g_2$
 lie in a decidable fragment of arithmetic, \eqref{eq:eq16} can be decided.  Which
 fragment?  The shape maps of $\fn{crev}$ (identity) and $\fn{cappn}$ (addition) suggest
 linear arithmetic, and we now show that this suggestion is right.
@@ -910,35 +1076,59 @@ $\langle \Z, 0, 1, +, \le \rangle$; its restriction to the natural numbers is
 \emph{Presburger natural arithmetic} (PNA).  Presburger showed that PIA is decidable
 \cite{Presburger29}, and the decidability of PNA follows (interpret $\N$ as the
 non-negative integers).  Cut-off subtraction and conditionals on linear inequalities are
-definable in PNA: the graph of $r = a \monus b$ is
+definable in PNA without quantifiers: the graph of $r = a \monus b$ is
 $(b \le a \wedge r + b = a) \vee (a < b \wedge r = 0)$, and the graph of
-$r = (\text{if } a < b \text{ then } x \text{ else } y)$ is
-$(a < b \wedge r = x) \vee (b \le a \wedge r = y)$.  We shall use this repeatedly.
+$r = (\text{if } 0 < c \text{ then } x \text{ else } y)$ is
+$(0 < c \wedge r = x) \vee (c = 0 \wedge r = y)$
+(\textsf{[Coq]} \coq{suB\_graph}, \coq{pf\_graph}).
 
-\begin{definition}[Linear functions]\label{def:lfun}
+\begin{definition}[Linear and piecewise-linear functions]\label{def:lfun}
   A function $F : \N^k \to \N$ is \emph{linear definable} if it is denoted by a term of
   the grammar
   \[
-    \fn{lfun} \;::=\; \fn{const}\,c \;\mid\; \fn{var}\,j \;\mid\; \fn{add}\,\fn{lfun}\,\fn{lfun}
+    \fn{lin} \;::=\; \fn{const}\,c \;\mid\; \fn{var}\,j \;\mid\; \fn{add}\,\fn{lin}\,\fn{lin}
     \qquad (c \in \N,\; j < k)
   \]
   interpreted in the evident way: $\fn{const}\,c$ is the constant function,
   $\fn{var}\,j$ is the $j$-th projection and $\fn{add}$ is pointwise addition.  It is
-  \emph{piecewise-linear definable} if it is denoted by a term of the extended grammar
-  \[
-    \fn{pl} \;::=\; \fn{lp}\,\fn{lfun}' \;\mid\; \fn{pf}\,\fn{pl}\,\fn{pl}\,\fn{pl},
-    \qquad
-    \fn{lfun}' \;::=\; \fn{lfun} \;\mid\; \fn{sub}\,\fn{lfun}'\,\fn{lfun}'
-  \]
-  where $\fn{sub}$ is cut-off subtraction and $\fn{pf}\,c\,l\,r$ denotes
-  ``if $0 < c$ then $l$ else $r$''.
+  \emph{piecewise-linear definable} if it is denoted by a term of the grammar
+  \begin{align*}
+    \fn{lfun} \;&::=\; \fn{const}\,c \;\mid\; \fn{var}\,j \;\mid\;
+       \fn{add}\,\fn{lfun}\,\fn{lfun} \;\mid\; \fn{sub}\,\fn{lfun}\,\fn{lfun} \\
+    \fn{pl} \;&::=\; \fn{lp}\,\fn{lfun} \;\mid\; \fn{pf}\,\fn{pl}\,\fn{pl}\,\fn{pl}
+  \end{align*}
+  where $\fn{sub}$ is cut-off subtraction, $\fn{lp}$ is the inclusion and
+  $\fn{pf}\,c\,l\,r$ denotes ``if $0 < c$ then $l$ else $r$''.
 \end{definition}
 
 Since a condition $a < b$ is the same as $0 < b \monus a$, nested $\fn{pf}$ expresses any
-finite case analysis on linear inequalities; the grammar is that of the Coq types
-\coq{lfun} and \coq{Plfun} of \S\ref{sec:coq}.  By the remarks preceding the definition,
-the graph of every piecewise-linear definable function is given by a quantifier-free
-formula of PNA (\textsf{[Coq]} \coq{suB\_graph}, \coq{pf\_graph}).
+finite case analysis on linear inequalities, and $\min$ and $\max$ are definable.  The
+second grammar is that of the Coq types \coq{lfun} and \coq{Plfun} of \S\ref{sec:coq}.
+
+\begin{lemma}[Definability]\label{lem:qf}
+  Let $t$ be a piecewise-linear term over the variables $\mathbf{x}$.  There is a
+  quantifier-free formula $\delta_t(\mathbf{x}, \mathbf{z}, r)$ of PNA, of size linear in
+  that of $t$, with one auxiliary variable $z$ for each proper subterm of $t$, such that
+  for all values of $\mathbf{x}$ there is exactly one choice of $\mathbf{z}$ and $r$ that
+  satisfies $\delta_t$, and in it $r$ is the value of $t$.
+\end{lemma}
+
+\begin{proof}
+  By induction on $t$.  For $\fn{const}\,c$ and $\fn{var}\,j$ take $r = c$ and $r = x_j$;
+  for $\fn{lp}\,e$ take the formula of $e$.
+  For a compound term with immediate subterms $t_1, t_2$ (and $t_3$), take the conjunction
+  of the formulae $\delta_{t_i}(\mathbf{x}, \mathbf{z}_i, z_i)$ of the subterms, with
+  fresh result variables $z_i$, and one further conjunct: $r = z_1 + z_2$ for
+  $\fn{add}$; the graph of cut-off subtraction displayed above, with $a := z_1$ and
+  $b := z_2$, for $\fn{sub}$; and the graph of the conditional, with $c := z_1$,
+  $x := z_2$ and $y := z_3$, for $\fn{pf}$.  Each of these conjuncts determines $r$
+  uniquely from the $z_i$, which are determined uniquely by the induction hypothesis.
+\end{proof}
+
+Because the auxiliary variables are functionally determined, a statement
+$\forall \mathbf{x}.\, \phi(t(\mathbf{x}))$ about the value of a term is equivalent to
+$\forall \mathbf{x}\,\mathbf{z}\,r.\; \delta_t(\mathbf{x},\mathbf{z},r) \to \phi(r)$,
+which is again universal.
 
 \begin{definition}[Linear and Presburger morphisms]\label{def:pmor}
   Let $(u, f) : (\mathbf{n} : \N^k \triangleleft \Fin\,n_1 + \dots + \Fin\,n_k) \lens (\N \triangleleft \Fin)$
@@ -952,30 +1142,52 @@ formula of PNA (\textsf{[Coq]} \coq{suB\_graph}, \coq{pf\_graph}).
   \end{enumerate}
 \end{definition}
 
-Cartesian morphisms are sometimes called linear in the literature
-\cite{AbbottAltenkirchGhani05}; our use of ``linear'' is different (it refers to the shape
-map), and we reserve ``cartesian'' for Definition~\ref{def:cartesian}.  $\fn{crev}$ and
+The word ``linear'' is sometimes used of container morphisms in another sense; ours
+refers to the shape map, and we reserve ``cartesian'' for the morphisms of
+Definition~\ref{def:cartesian}.  $\fn{crev}$ and
 $\fn{cappn}$ are linear, with shape maps $\fn{var}\,0$ and
 $\fn{add}\,(\fn{var}\,0)\,(\fn{var}\,1)$ respectively.
 
+A linear shape map does not by itself make a morphism tractable, because it leaves the
+position maps unconstrained.  The morphism that reverses a list when its length is prime
+and returns it unchanged otherwise has the identity as its shape map, but its shadow is
+not definable in Presburger arithmetic: the sets of numbers definable there are the
+ultimately periodic ones, and the primes are not among them.  This is why clause~(ii)
+constrains the position map as well.  What a linear shape map does determine is a division
+of the output into blocks, one for each occurrence of a variable in the term, and the
+morphisms that respect this division in the simplest way are Presburger.
+
 \begin{proposition}\label{prop:linear-pl}
-  The shadow of the reindexing map of a linear morphism is piecewise-linear definable.
+  Let $u$ be a linear term built from variables and addition.  The morphism with shape
+  map $u$ that fills the output, block by block and in order, with the inputs named by
+  the occurrences of variables in $u$ is Presburger: its shadow is piecewise-linear
+  definable, with one case distinction for each addition in $u$.
 \end{proposition}
 
-\begin{proof}[Proof sketch]
-  By induction on the term denoting $u$.  For $\fn{const}$ and $\fn{var}$ the shadow is
-  obtained directly by $\reduce$.  For $\fn{add}\,l\,r$, an output position $i < u\,\mathbf{n}$
-  satisfies either $i < l\,\mathbf{n}$ or $i - l\,\mathbf{n} < r\,\mathbf{n}$, by the lemma
-  $\fn{leplus\_or} : \forall i\,n\,m.\; i < n + m \to \{i < n\} + \{i - n < m\}$; in the
-  first case the position is routed through the $\fn{finl}$ component and in the second
-  through the $\fn{finr}$ component, recursively.  Each split introduces one breakpoint,
-  linear in the $n_j$, so the result is piecewise linear.  Full details are in
-  \cite[Prop.~6.2]{Prince10}.
+\begin{proof}
+  By induction on $u$.  For $\fn{var}\,j$ the output is the $(j+1)$-st input, and in the
+  flat numbering of positions the shadow is $i \mapsto n_1 + \dots + n_j + i$.  For
+  $\fn{add}\,l\,r$, an output position $i < u\,\mathbf{n}$ satisfies either
+  $i < l\,\mathbf{n}$ or $i - l\,\mathbf{n} < r\,\mathbf{n}$; in the first case it belongs
+  to the block of $l$ and in the second to that of $r$, so the shadow is
+  \[
+    \text{if } i < l\,\mathbf{n} \text{ then } g_l\,\mathbf{n}\,i
+    \text{ else } g_r\,\mathbf{n}\,(i \monus l\,\mathbf{n}),
+  \]
+  where $g_l$ and $g_r$ are the shadows given by the induction hypothesis.  This is
+  piecewise linear, because piecewise-linear terms are closed under substitution
+  (\textsf{[Coq]} \coq{psubst\_ok}).
 \end{proof}
 
-Linear morphisms do not cover $\fn{tail}$, $\fn{head}$, $\fn{last}$ or
-$\fn{but\_last}$, whose shape maps involve subtraction, nor $\fn{take}$, whose shape map is
-a minimum.  All of these are Presburger morphisms, however, and in fact the Presburger
+For $u = \fn{add}\,(\fn{var}\,0)\,(\fn{var}\,1)$ the morphism of the proposition is
+$\fn{cappn}$, and the shadow computed in the proof simplifies to the identity; for
+$\fn{add}\,(\fn{var}\,0)\,(\fn{var}\,0)$ it is the function that doubles a list.  The
+construction is that of \cite[\S6.2.1]{Prince10}, where it is carried out for the
+dependently typed position maps; the statement of Proposition~6.2 there should be read
+with the restriction made here.  Morphisms of this kind do not include $\fn{tail}$,
+$\fn{head}$, $\fn{last}$ or $\fn{but\_last}$, whose shape maps involve subtraction, nor
+$\fn{take}$, whose shape map is a minimum, nor indeed $\fn{crev}$, which traverses its
+block backwards.  All of these are Presburger morphisms, however, and the Presburger
 morphisms are closed under the operation that matters.
 
 \begin{proposition}[Closure under composition]\label{prop:closure}
@@ -1000,28 +1212,34 @@ morphisms are closed under the operation that matters.
 \end{theorem}
 
 \begin{proof}
-  Let $\gamma_u(\mathbf{n}, r)$, $\gamma_v(\mathbf{n}, r)$, $\gamma_1(\mathbf{n}, i, r)$
-  and $\gamma_2(\mathbf{n}, i, r)$ be the quantifier-free PNA formulae defining the graphs
-  of $u$, $v$, $g_1$ and $g_2$.  Then \eqref{eq:eq16} is equivalent to the PNA sentence
+  Let $\delta_u(\mathbf{n}, \mathbf{z}, r)$, $\delta_v(\mathbf{n}, \mathbf{z}', r')$,
+  $\delta_1(\mathbf{n}, i, \mathbf{y}, r_1)$ and $\delta_2(\mathbf{n}, i, \mathbf{y}', r_2)$
+  be the quantifier-free formulae that Lemma~\ref{lem:qf} provides for the terms denoting
+  $u$, $v$, $g_1$ and $g_2$.  Then \eqref{eq:eq16} is equivalent to the PNA sentence
   \begin{align*}
-    &\forall \mathbf{n}\,r\,r'.\; \gamma_u(\mathbf{n},r) \to \gamma_v(\mathbf{n},r') \to r = r' \\
-    \wedge\;\;&\forall \mathbf{n}\,i\,r\,r_1\,r_2.\; \gamma_u(\mathbf{n},r) \to i < r \to
-      \gamma_1(\mathbf{n},i,r_1) \to \gamma_2(\mathbf{n},i,r_2) \to r_1 = r_2 ,
+    &\forall \mathbf{n}\,\mathbf{z}\,\mathbf{z}'\,r\,r'.\;
+       \delta_u \to \delta_v \to r = r' \\
+    \wedge\;\;&\forall \mathbf{n}\,i\,\mathbf{z}\,\mathbf{y}\,\mathbf{y}'\,r\,r_1\,r_2.\;
+       \delta_u \to i < r \to \delta_1 \to \delta_2 \to r_1 = r_2 ,
   \end{align*}
   which is decidable by Presburger's theorem.  The other two conditions are
   translated in the same way.
 \end{proof}
 
 The proof shows more than decidability.  All three sentences are \emph{universal}: a
-block of $\forall$s in front of a quantifier-free matrix.  Deciding such a sentence
-amounts to deciding the unsatisfiability of a quantifier-free formula, a problem that is
-NP-complete rather than doubly exponential, and that is exactly what the Omega test
-\cite{Pugh91}, Coq's \coq{lia} and SMT solvers are built for.  This matters for the
-practicality discussed in \S\ref{sec:coq}.  By contrast the dual of losslessness,
+block of $\forall$s in front of a quantifier-free matrix, of size linear in the terms.
+Deciding such a sentence amounts to deciding the unsatisfiability of a quantifier-free
+formula, and satisfiability of quantifier-free Presburger formulae is NP-complete
+\cite{Papadimitriou81}, whereas the full theory requires at least doubly exponential
+nondeterministic time \cite{FischerRabin74}.  The universal fragment is exactly what the
+Omega test \cite{Pugh91}, Coq's \coq{lia} and SMT solvers are built for, and this matters
+for the practicality discussed in \S\ref{sec:coq}.  By contrast the dual of losslessness,
 surjectivity of the position maps ($\forall n\,j.\, j < n \to \exists i < u\,n.\, g_1\,n\,i = j$),
-has an existential quantifier and lies outside the fragment; happily, for finite sets
-injectivity together with $u\,n = n$ already implies bijectivity, which is why the
-losslessness condition is stated as it is.
+has an existential quantifier and lies outside the fragment.  Happily, for functions
+between finite sets of the same size injectivity implies bijectivity, which is why the
+losslessness condition is stated as it is: for a morphism satisfying the range condition
+it implies that the corresponding container morphism is cartesian
+(Theorem~\ref{thm:bridge}).
 
 \subsection{Representing Presburger morphisms}\label{sec:ppcm}
 
@@ -1046,8 +1264,9 @@ encoding), via the isomorphism $\Fin\,n_1 + \dots + \Fin\,n_k \cong \Fin(n_1 + \
     \lastk &= (\text{if } x_0 < k \text{ then } x_0 \text{ else } k,\; x_1 + (x_0 \monus k)).
   \end{align*}
   Observe that with the flat encoding the position map of $\fn{App}$ is the identity: output
-  position $i$ is input position $i$ of the concatenation.\footnote{A position map that subtracts $n$ in the second case, as one might first
-  write, double counts the offset that the interpretation already applies; see \S\ref{sec:coq}.}
+  position $i$ is input position $i$ of the concatenation.  (A position map that subtracted
+  the length of the first list in its second case, as one might first write, would count
+  twice the offset that the interpretation below already applies.)
 \end{example}
 
 The \emph{interpretation} of $(u, g) : \mathsf{PPCm}$ of arity $k$ on inputs
@@ -1105,8 +1324,8 @@ than subject to a free-variable side condition.)
   up to equality of lengths and of elements at every position.
 \end{theorem}
 
-Equality \eqref{eq:eq16} is implemented as a proposition \coq{pcmEQ} and decided by the
-tactic \coq{containers} described in \S\ref{sec:coq}.
+Equality \eqref{eq:eq16} is implemented as a proposition \coq{pcmEQ}, and statements of
+it are proved by the tactic \coq{containers} described in \S\ref{sec:coq}.
 
 \subsection{A closer look at some functions}\label{sec:closer}
 
@@ -1145,7 +1364,7 @@ $\fn{top}$-or-$\fn{emb}$ (Example~\ref{ex:rev}); here they are two conditionals.
       \fn{head}\,(\rev\,xs) &= \fn{last}\,xs \\
       \fn{tail}\,(\rev\,xs) &= \rev\,(\fn{but\_last}\,xs) \\
       \fn{drop}_n\,(\fn{drop}_m\,xs) &= \fn{drop}_{n+m}\,xs \\
-      \fn{drop}_n\,(\fn{take}_m\,xs) &= \fn{take}_{m-n}\,(\fn{drop}_n\,xs) \\
+      \fn{drop}_n\,(\fn{take}_m\,xs) &= \fn{take}_{m \monus n}\,(\fn{drop}_n\,xs) \\
       \fn{take}_n\,(\fn{drop}_m\,xs) &= \fn{drop}_m\,(\fn{take}_{n+m}\,xs)
     \end{align*}
   \end{minipage}
@@ -1172,12 +1391,12 @@ dependently typed system of \cite{PrinceGhaniMcBride08} required.
 
 \subsection{The Coq development}\label{sec:coq}
 
-The updated development consists of four
-files, compiles with Coq 8.18 and the Rocq Prover, uses only the standard library, and
-contains no axioms or admitted lemmas.
+The development consists of five files of about 2,200 lines in all.  It compiles with
+Coq~8.18 and with the Rocq Prover~9.3, uses only the standard library, and contains no
+axioms or admitted lemmas.
 
-\paragraph{\coq{Piecewise.v}.}  The grammar of Definition~\ref{def:lfun} is the pair of
-inductive types
+\paragraph{\coq{Piecewise.v}.}  The second grammar of Definition~\ref{def:lfun} is the pair
+of inductive types
 \begin{lstlisting}
 Inductive lfun : Set :=                  Inductive Plfun : Set :=
   | cnst : nat -> lfun                     | lp : lfun -> Plfun
@@ -1206,33 +1425,48 @@ Definition pcmEQ (k : nat) (l r : PPCm) : Prop :=
 \begin{lstlisting}
 Ltac containers := unfold_morphism; arith.
 \end{lstlisting}
-Here \coq{unfold\_morphism} unfolds the definitions, splits the conjunction, evaluates the
-terms symbolically (rewriting with the correctness lemmas for substitution) and
+Here \coq{unfold\_morphism} unfolds the definitions, splits the conjunction and evaluates
+the terms symbolically (rewriting with the correctness lemmas for substitution), and
 \coq{arith} eliminates every remaining conditional by case analysis and calls \coq{lia}.
-No pre-processing of the kind the earlier \coq{omega}-based tactic needed (discarding
-redundant hypotheses, ad hoc inequality reasoning) is required.
+The tactic applies unchanged to the range and losslessness conditions.  Its soundness is
+guaranteed by the kernel; the case analysis is exhaustive, so its completeness on these
+goals rests on that of \coq{lia} for linear integer arithmetic.
+
+A tactic that proves valid statements does not produce counterexamples to invalid ones,
+so the file also provides a \emph{refutation} procedure for arity-1 morphisms.  The
+function \coq{find\_cex l r b} searches the inputs of length at most $b$ for a length at
+which the shape maps of $l$ and $r$ differ, or a length and a position at which their
+position maps differ, and
+\begin{lstlisting}
+Theorem find_cex_sound : forall l r b c, find_cex l r b = Some c -> ~ pcmEQ 1 l r.
+\end{lstlisting}
+turns a successful search into a proof that the law fails (tactic \coq{refute}).
 
 \paragraph{\coq{Examples.v}.}  The representations of Example~\ref{ex:ppcm} and the
 properties of Figure~\ref{fig:properties}, each proved by \coq{containers}.  A
 representation is only as good as its agreement with the function it is meant to
-represent --- the earlier development contained a \fn{take} whose shape map was
-$\max(n,m)$ rather than $\min(n,m)$, a swapped conditional that no property in
-Figure~\ref{fig:properties} detects --- so each basic morphism is validated against the
-standard library by a \emph{transfer lemma}, e.g.
+represent.  A \fn{take} whose conditional is swapped, so that its shape map is
+$\max(n,m)$ rather than $\min(n,m)$, satisfies both properties of
+Figure~\ref{fig:properties} in which \fn{take} occurs (\coq{swapped\_drop\_take},
+\coq{swapped\_take\_drop}).  It is caught by the range condition
+(\coq{swapped\_take\_ill\_typed}), and, more to the point, each basic morphism is
+validated against the standard library by a \emph{transfer lemma}, e.g.
 \begin{lstlisting}
 Lemma Take_spec : forall m (l : list X),
     RepEq (interp (Take m) [of_list d l] d) (of_list d (firstn m l)).
 \end{lstlisting}
 where \coq{of\_list} turns a list into a length-and-lookup pair and \coq{RepEq} is equality
 of length and of elements at every position.  How hard is it to relate the container-style
-definitions to the usual recursive ones?  Each transfer lemma is a short structural induction (between three and
-ten lines; \coq{Rev\_spec} uses the library lemma \coq{rev\_nth}), and it is done once per
+definitions to the usual recursive ones?  A general criterion (\coq{spec1}) reduces each
+transfer lemma to a comparison of lengths and of the elements at each index, which takes
+between two and eight lines using standard facts about \coq{nth}, and it is done once per
 function, not once per property.  With the transfer lemmas in hand, theorems about
 ordinary lists follow from the decision procedure \emph{with no induction at all}: the
 file derives, among others,
 \begin{lstlisting}
 Theorem rev_involutive_via_containers : forall l : list X, rev (rev l) = l.
-Theorem firstn_skipn_via_containers : forall m (l : list X), firstn m l ++ skipn m l = l.
+Theorem firstn_skipn_via_containers :
+  forall m (l : list X), firstn m l ++ skipn m l = l.
 \end{lstlisting}
 by chaining the transfer lemmas, Theorem~\ref{thm:comp}, Theorem~\ref{thm:sound} and the
 relevant \coq{pcmEQ}.  This is a ``two-tier'' methodology: one recursive definition per
@@ -1240,52 +1474,65 @@ function for programming, one container representation per function for proving,
 connected once.
 
 \paragraph{\coq{Containers.v}.}  Containers, extensions, morphisms, $\mmap$ with its
-functoriality, cartesian morphisms, agents, wrapping and runs, exactly as in
-\S\ref{sec:containers}--\ref{sec:agents}; the tree container and the proof that flattening
-is cartesian (\S\ref{sec:trees}); and the bridge to the arithmetic representation
-described in \S\ref{sec:agents-verif}.
+functoriality, cartesian morphisms, composition of containers and lifting, agents,
+environments, wrapping and runs, as in \S\ref{sec:containers}--\ref{sec:agents}; equality
+of morphisms into the list container (Definition~\ref{def:eqmor}, which for such
+morphisms needs neither heterogeneous equality nor axioms, because the positions of the
+list container are numbers below a bound); the bridge from the arithmetic representation
+to container morphisms (\S\ref{sec:agents-verif}); and the tree container with the proof
+that flattening is cartesian (\S\ref{sec:trees}).
+
+\paragraph{\coq{AgentExamples.v}.}  The adapters of \S\ref{sec:agents-verif} as container
+morphisms, their laws as equations between container morphisms and as statements about
+runs, and concrete agents and environments whose runs are computed by the kernel.
 
 \paragraph{Performance.}  Table~\ref{tab:perf} gives proof times.  For comparison, the
 \coq{omega}-based development of \cite{Prince10} took 6\,s for $\rev \circ \rev = \fn{id}$.
-The present development proves every property of
-Figure~\ref{fig:properties} in at most 0.2\,s (all but one in under 40\,ms), and the most expensive statement in the
-development (the sliding-window invariant of \S\ref{sec:agents-verif}, which composes an
-arity-2 morphism) in 0.43\,s.  Three things account for the speed: \coq{lia}
-(Micromega) replaces \coq{omega}, which was deprecated in Coq 8.12 and removed in 8.14;
-the non-dependent, nat-indexed terms give \coq{lia} small goals with few atoms; and the
-universal form of the statements (Theorem~\ref{thm:decidable}) puts them in the
-quantifier-free fragment for which these procedures are designed.
+The present development proves every property of Figure~\ref{fig:properties} in at most
+0.15\,s (all but two in under 40\,ms), and the most expensive statement it contains (the
+sliding-window invariant of \S\ref{sec:agents-verif}, an equation between composites of
+arity~2) in 0.4\,s; all five files compile in about five seconds.  Three things account
+for the speed: \coq{lia} (Micromega) replaces \coq{omega}, which was deprecated in
+Coq~8.12 and removed in 8.14; the non-dependent, nat-indexed terms give \coq{lia} small
+goals with few atoms; and the universal form of the statements
+(Theorem~\ref{thm:decidable}) puts them in the quantifier-free fragment for which these
+procedures are designed.
 
 \begin{table}[t]
   \centering\small
   \begin{tabular}{@{}lrr@{}}
     \toprule
-    Statement & \cite{Prince10} & this version \\
+    Statement & \cite{Prince10} & this paper \\
     \midrule
     $\rev\,(\rev\,xs) = xs$  & 6\,s & 0.02\,s \\
     $\fn{take}_n\,(\fn{drop}_m\,xs) = \fn{drop}_m\,(\fn{take}_{n+m}\,xs)$  & --- & 0.02\,s \\
-    $\fn{head}\,(\rev\,(\fn{rot}\,xs)) = \fn{head}\,xs$ & --- & 0.04\,s \\ %& --- 
-    $\rev\,(xs \app ys) = \rev\,ys \app \rev\,xs$ & not provable$^\dagger$  & 0.18\,s \\
-    $\fn{take}_m\,b \app \fn{drop}_m\,b = b$  & --- & 0.06\,s \\
-    $\lastk\,(h \app t) = \lastk\,(\lastk\,h \app t)$  & --- & 0.43\,s \\
+    $\fn{head}\,(\rev\,(\fn{rot}\,xs)) = \fn{head}\,xs$ & --- & 0.03\,s \\
+    $\rev\,(xs \app ys) = \rev\,ys \app \rev\,xs$ & not expressible$^\dagger$  & 0.14\,s \\
+    $\fn{take}_m\,b \app \fn{drop}_m\,b = b$  & --- & 0.05\,s \\
+    $\lastk\,(h \app t) = \lastk\,(\lastk\,h \app t)$  & --- & 0.38\,s \\
     \bottomrule
   \end{tabular}
-  \caption{Time taken by the tactic (Coq 8.18, Intel Xeon 2.1\,GHz).  The figure for
-    \cite{Prince10} is from its \S6.3.2 (Intel E5200).  $^\dagger$Not expressible in the
-    development of \cite{Prince10}, which lacked the composition $\fn{comp}_2$.}\label{tab:perf}
+  \caption{Time taken by the tactic \coq{containers} (Coq 8.18, one core of an Intel Xeon
+    at 2.3\,GHz, median of three runs).  The figure for \cite{Prince10} is from its
+    \S6.3.2 (Intel E5200); a dash means that no figure was reported there.
+    $^\dagger$The development of \cite{Prince10} lacked the composition
+    $\fn{comp}_2$.}\label{tab:perf}
 \end{table}
 
 \paragraph{Limitations.}  The procedure handles polymorphic functions
-$\List(X)^k \to \List(X)$ whose container morphisms are Presburger.  Functions on nested
-lists, and functions into other data types, are outside its scope; \S\ref{sec:conclusion}
-discusses extensions.
+$\List(X)^k \to \List(X)$ whose container morphisms are Presburger; the bridge to
+container morphisms and to behaviour (\S\ref{sec:agents-verif}) is established for
+$k = 1$.  Functions on nested lists, and functions into other data types, are outside
+its scope; \S\ref{sec:conclusion} discusses extensions.
 
 % ===========================================================================
 \section{Verifying List-Shaped Agent Adapters}\label{sec:agents-verif}
 % ===========================================================================
 
 We now combine \S\ref{sec:agents} and \S\ref{sec:arith}.  Throughout, ``adapter'' means
-an adapter between list-shaped interfaces, represented as in \S\ref{sec:ppcm}.
+a container morphism on the list interface given by a representation of arity~1 as in
+\S\ref{sec:ppcm}; by Proposition~\ref{prop:lifting}, what is proved of such an adapter
+holds of its lifting to batches of items of any interface.
 
 \subsection{From arithmetic equality to agent behaviour}
 
@@ -1294,47 +1541,69 @@ Definition~\ref{def:agent} live on the list container with its dependently typed
 positions.  The two are connected by the range condition.
 
 \begin{theorem}\label{thm:bridge}
-  \textsf{[Coq: \coq{to\_cmor}, \coq{to\_cmor\_interp}, \coq{pcmEQ\_wrap}]}
+  \textsf{[Coq: \coq{to\_cmor}, \coq{to\_cmor\_interp}, \coq{ccomp\_represents},
+  \coq{represents\_cmorEq}, \coq{cmorEq\_run}, \coq{lossless\_cartesian}]}
   \leavevmode
   \begin{enumerate}[label=(\roman*),leftmargin=2em]
   \item Every representation $m = (u, g)$ of arity $1$ satisfying the range condition
-    determines a container morphism $\widehat{m} : (\N \triangleleft \Fin) \lens (\N \triangleleft \Fin)$,
-    with shape map $u$ and position map $f_n\,i = g\,n\,i$ (the range condition supplies
-    the proof that $g\,n\,i < n$).
+    determines a container morphism
+    $\widehat{m} : (\N \triangleleft \Fin) \lens (\N \triangleleft \Fin)$, with shape map
+    $u$ and position map $f_n\,i = g\,n\,i$ (the range condition supplies the proof that
+    $g\,n\,i < n$).
   \item The extension of $\widehat{m}$ agrees with the interpretation
     \eqref{eq:interp} of $m$: reading a list off $\mmap\,\widehat{m}\,e$ gives the same
     length and elements as applying $\llbracket m \rrbracket$ to the list read off $e$.
-  \item Consequently, if $l$ and $r$ satisfy the range condition and
-    $\fn{pcmEQ}\,l\,r$ holds, then for every agent $a$ on the list interface and every
-    state $x$, the one-step behaviours $\fn{wrap}\,\widehat{l}\,a\,x$ and
-    $\fn{wrap}\,\widehat{r}\,a\,x$ have the same move and the same continuation at every
-    response; by Proposition~\ref{prop:wrap}(iii) the wrapped agents have the same runs.
+  \item Composition is respected: $\fn{comp}_1\,l\,r$ \emph{represents}
+    $\widehat{l} \circ \widehat{r}$, in the sense that it computes the shape map of the
+    composite and the index of every value of its position maps.
+  \item If $t$ and $t'$ represent container morphisms $m$ and $m'$ and
+    $\fn{pcmEQ}\,t\,t'$ holds, then $m$ and $m'$ are equal in the sense of
+    Definition~\ref{def:eqmor}.
+  \item Consequently, for every agent $a$ on the list interface, every environment, all
+    initial states and every number of rounds, $\fn{wrap}\,m\,a$ and $\fn{wrap}\,m'\,a$
+    produce the same run.
+  \item If $m$ satisfies the range condition and the losslessness condition of
+    Theorem~\ref{thm:decidable}, then $\widehat{m}$ is cartesian.
   \end{enumerate}
 \end{theorem}
 
-Part (iii) is the statement that an equation decided by \coq{containers} is a theorem
-about \emph{behaviour}: whatever the agent --- an LLM-backed planner, a retriever, a
-hand-written state machine --- the two adapters make it indistinguishable to its
-environment.
+Parts (iii) and (iv) make the method compositional at the level of container morphisms:
+to compare two pipelines of adapters one composes their representations and calls the
+decision procedure once.  Part (v) is the statement that an equation proved by
+\coq{containers} is a theorem about \emph{behaviour}: whatever the agent --- an LLM-backed
+planner, a retriever, a hand-written state machine --- and whatever the environment, the
+two adapters cannot be told apart.  It is proved for morphisms from an arbitrary
+interface into the list interface, so it applies equally to a planner served through
+$\fn{flatten}$.  For the liftings $m \cdot K$ the one-step statement is
+Proposition~\ref{prop:lifting}(iii).  The statement about runs holds for them as well, but
+the moves of $\List \circ K$ contain functions, and identifying two of them requires
+function extensionality; the development proves the statement under that hypothesis
+(\coq{cmorEq\_run\_lifted}) rather than assume an axiom.
 
 \subsection{Losslessness}
+
 An adapter that drops or duplicates responses is sometimes intended ($\lastk$ must drop
 old turns) and sometimes a bug (a fan-in that loses a tool result).  Either way it is a
 fact worth knowing, and for governance and auditability it is a fact worth
 \emph{checking}.
 
 \begin{proposition}\label{prop:lossless}
-  \textsf{[Coq: \coq{lossless} and the lemmas \coq{*\_lossless}, \coq{*\_lossy}]}
-  Losslessness of an adapter --- cartesianness of the corresponding container morphism
-  --- is decidable (Theorem~\ref{thm:decidable}).  Reversal and the two rotations are
-  lossless; $\fn{tail}$, $\fn{take}_m$, $\fn{drop}_{m+1}$ and $\lastk$ are not, and the
-  procedure exhibits a witness in each case (a history of length $k + 1$ for $\lastk$).
+  \textsf{[Coq: \coq{lossless}, \coq{lossless\_cartesian}, and the lemmas
+  \coq{*\_lossless} and \coq{*\_lossy}]}
+  Losslessness of an adapter is decidable (Theorem~\ref{thm:decidable}) and implies that
+  the adapter is cartesian (Theorem~\ref{thm:bridge}(vi)).  Reversal and the two rotations
+  are lossless, by \coq{containers}; $\fn{tail}$, $\fn{take}_m$, $\fn{drop}_{m+1}$ and
+  $\lastk$ are not, and each is refuted by an explicit witness (a history of length
+  $k + 1$ for $\lastk$).  Lossless adapters compose with one another and with
+  $\fn{flatten}$ (\coq{cartesian\_comp}, \coq{lossless\_after\_flatten}), and they lift to
+  batches that are answered all at once (Remark~\ref{rem:all}).
 \end{proposition}
 
 \subsection{Worked examples}\label{sec:worked}
 
-All statements in this section are from the file \coq{Examples.v}, where each is proved
-or refuted by the tactic \coq{containers} in well under a second.
+The statements in this section are from the files \coq{Examples.v} and
+\coq{AgentExamples.v}.  Each law is proved by the tactic \coq{containers}, or refuted by
+\coq{refute}, in well under a second.
 
 \paragraph{Context windows.}  Let $h$ be a history and $t$ the new turns to be appended.
 A sliding-window implementation must decide whether to truncate before or after
@@ -1348,39 +1617,59 @@ system that keeps everything and truncates on demand.  In the representation,
 \[
   \fn{comp}_1\,\lastk\,\fn{App} \;=\; \fn{comp}_1\,\lastk\,\big(\fn{comp}_2\,\fn{App}\,(\lastk \text{ on } x_0)\,(\fn{id} \text{ on } x_1)\big)
 \]
-(\textsf{[Coq]} \coq{lastk\_app}).  Two further
-invariants are proved in the same way: truncation is idempotent,
-$\lastk\,(\lastk\,h) = \lastk\,h$, and nested windows collapse to the tighter one,
-$\lastk\,(\fn{last}_{k+1}\,h) = \lastk\,h$.
+(\textsf{[Coq]} \coq{lastk\_app}).  Two further invariants are proved in the same way:
+truncation is idempotent, $\lastk\,(\lastk\,h) = \lastk\,h$, and nested windows collapse
+to the tighter one, $\lastk\,(\fn{last}_{k+1}\,h) = \lastk\,h$.  By
+Theorem~\ref{thm:bridge} these two are also equations between container morphisms
+(\coq{window\_idem}, \coq{window\_window}) and statements about runs: an agent wrapped
+twice by the window behaves exactly as the agent wrapped once
+(\coq{window\_idem\_run}).
 
 \paragraph{A refuted law.}  It is tempting to ``optimise'' the window by dropping the
 oldest turn of a $(k+1)$-window, on the grounds that
 $\fn{drop}_1\,(\fn{last}_{k+1}\,h) = \lastk\,h$.  This is false when the history is shorter
 than the window: for a history of length $1$ and $k = 1$ the left side is empty and the
-right side is not.  The procedure refutes it with exactly that witness (\textsf{[Coq]}
-\coq{drop\_lastk\_refuted}).  Likewise an off-by-one position map,
-$f_n\,i = i + (n \monus k) + 1$, is rejected with the witness $n = k + 1$, $i = 0$
-(\coq{badlastk\_detected}).  A false adapter law is a routing bug: the agent would be
-shown the wrong turn.  That the same procedure both proves the true laws and refutes the
-false ones with counterexamples is, for this application, the essential property.
+right side is not.  The search finds exactly that witness (\textsf{[Coq]}
+\coq{drop\_lastk\_cex}, \coq{drop\_lastk\_refuted}).  Likewise an off-by-one position
+map, $f_n\,i = i + (n \monus k) + 1$, is rejected for $k = 2$ with the witness $n = 1$,
+$i = 0$ (\coq{badlastk\_cex}, \coq{badlastk\_detected}); this adapter is not even well
+typed, for it fails the range condition (\coq{badlastk\_ill\_typed}).  A false adapter
+law is a routing bug: the agent would be shown the wrong turn.  That true laws are
+proved and false ones refuted with concrete counterexamples, in both cases without
+guidance, is for this application the essential property.
+
+\paragraph{Shape maps do not determine behaviour.}  The adapters $\lastk$ and
+$\fn{take}_k$ have the same shape map, $\min(n,k)$: through either of them an
+environment sees batches of the same sizes.  They differ in their position maps, and
+the difference is observable.  Consider the agent that in state $x$ emits a batch of
+$x$ items and, when item $i$ is selected, moves to state $i$, and the environment that
+always selects the last item it is shown.  Started in state $5$, the agent alone
+produces the run $5, 4, 3, 2, 1, 0$; wrapped by $\fn{last}_3$ it produces
+$3, 3, 3, 2, 1, 0$; wrapped by $\fn{take}_3$ it produces $3, 2, 1, 0$ (\textsf{[Coq]}
+\coq{run\_plain}, \coq{run\_window}, \coq{run\_firstk}, computed by the kernel).
+Equality of adapters must therefore compare position maps, which is what
+Definition~\ref{def:eqmor} and its arithmetic form \eqref{eq:eq16} do.
 
 \paragraph{Fan-out and fan-in.}  An orchestrator that splits a batch of $n$ requests at
 index $m$ and reassembles the $n$ results must restore the original correspondence between
 requests and results.  The procedure proves
 $\fn{take}_m\,b \app \fn{drop}_m\,b = b$ as an equation between the arity-1 morphisms
 $\fn{comp}_2\,\fn{App}\,\fn{Take}_m\,\fn{Drop}_m$ and $\fn{id}$
-(\textsf{[Coq]} \coq{split\_merge}): result $i$ is routed back to request $i$.  Together
-with Proposition~\ref{prop:wrap}(ii) this scales: a tree of splits and merges is a
-composite of adapters, and its equality to the identity is one \coq{pcmEQ}.
+(\textsf{[Coq]} \coq{split\_merge}): result $i$ is routed back to request $i$.  The
+method scales: a tree of splits and merges is a composite of representations, and its
+equality to the identity is one \coq{pcmEQ}.
 
 \paragraph{Hierarchical planners.}  A planner on the tree interface of
-\S\ref{sec:trees}, wrapped by $\fn{flatten}$, is an agent on the batch interface, and the
-results above apply to it unchanged.  In particular, a plan with $n$ leaves dispatched to
-two worker pools by splitting at $m$ and reassembled has, by \coq{split\_merge} and
-Proposition~\ref{prop:wrap}(ii), the adapter $\fn{flatten}$ itself, so each leaf receives
-exactly its own result; and because $\fn{flatten}$ is cartesian
-(Proposition~\ref{prop:flatten}) the whole pipeline from plan to pooled results is
-lossless.  The development packages the first step as \coq{flat\_planner}.
+\S\ref{sec:trees}, wrapped by $\fn{flatten}$, is an agent on the list interface, and the
+results above apply to it unchanged: list adapters that are equal in the arithmetic
+sense give the planner the same runs (\coq{pcmEQ\_run\_planner}), and in particular
+windowing a flattened planner twice is the same as windowing it once
+(\coq{planner\_window\_idem}).  A pipeline that flattens a plan, reverses the batch and
+rotates it is cartesian, because each of its stages is (\coq{pipeline\_cartesian}):
+every result is routed to exactly one leaf and every leaf receives one.  For the plan
+of Figure~\ref{fig:flatten}, whose leaves lie at different depths, the kernel computes
+that the three slots of the batch are routed to the leaves $x_1$, $x_2$ and $x_3$ in
+that order (\coq{flatten\_figure}).
 
 \paragraph{Reorderings.}  The identities of Figure~\ref{fig:properties} read, in the
 agent setting, as facts about rankings and histories: ``the top candidate of the reversed
@@ -1390,42 +1679,42 @@ back changes nothing'' ($\fn{unrot} \circ \fn{rot} = \fn{id}$).
 
 \subsection{Generate and check}\label{sec:generate-check}
 
-It would be interesting to consider whether the translation from a recursive definition to its container
-representation could be automated. %, calling it a potential ``game changer''.
-Two observations bear on this.  First, the thesis \cite[\S7.2.3]{Prince10} already
-gives a \emph{semantic} translation: for any polymorphic $F : \forall X.\, \List\,X \to \List\,X$,
-Theorem~\ref{thm:rep} yields its container morphism, and $\reduce$ \eqref{eq:reduce}
-yields the shadow; what is not automatic is recognising the shadow as a piecewise-linear
-\emph{term}, which is a normalisation problem rather than a proof problem.  Second, the
-division of labour between an untrusted \emph{proposer} and a trusted \emph{checker} has
-become the standard architecture for combining language models with proof assistants
-\cite{Harmonic25,AlphaProof24}, and it fits here exactly: a model may propose the
-representation $(u, g)$ of a function together with its transfer lemma, and the
-transfer lemma's proof (a short induction) and all subsequent properties (decided by
-\coq{containers}) are checked by Coq.  Ghani's remark that a language model is ``like a
-precocious PhD student'' who ``talks nonsense quite often'' \cite{GhaniPodcast26} is
-precisely the reason the checker must be a decision procedure and not another model.  A
-natural objection to the container style --- that index arithmetic is an unnatural way to
-program lists, closer to arrays in C than to lists in a functional language --- is in this
-domain inverted: index arithmetic on histories and batches
-(\texttt{history[-k:]}, \texttt{results[i]}) is how orchestration code is written today.
-What is missing is the proof that the arithmetic is right, which is what the procedure
-supplies.
+Could the translation from a recursive definition to its container representation be
+automated?  Two observations bear on the question.  First, the thesis
+\cite[\S7.2.3]{Prince10} already gives a \emph{semantic} translation: for any polymorphic
+$F : \forall X.\, \List\,X \to \List\,X$, Theorem~\ref{thm:rep} yields its container
+morphism, and $\reduce$ \eqref{eq:reduce} yields the shadow; what is not automatic is
+recognising the shadow as a piecewise-linear \emph{term}, which is a normalisation problem
+rather than a proof problem.  Second, the division of labour between an untrusted
+\emph{proposer} and a trusted \emph{checker} has become the standard architecture for
+combining language models with proof assistants \cite{Harmonic25,AlphaProof25}, and it
+fits here exactly: a model may propose the representation $(u, g)$ of a function together
+with its transfer lemma, and the proof of the transfer lemma (a few lines) and all
+subsequent properties (proved by \coq{containers}) are checked by Coq.  Ghani's remark
+that a current language model resembles a precocious doctoral student, who works hard
+and is quite often wrong \cite{GhaniPodcast26}, is precisely the reason the checker must
+be a proof assistant and not another model.  A natural objection to the container
+style --- that index arithmetic is an unnatural way to program lists, closer to arrays
+in C than to lists in a functional language --- is in this domain inverted: index
+arithmetic on histories and batches (\texttt{history[-k:]}, \texttt{results[i]}) is how
+orchestration code is written today.  What is missing is the proof that the arithmetic
+is right, which is what the procedure supplies.
 
 \subsection{What this does and does not establish}
 
 The results above are about the composition of components along typed, list-shaped
 interfaces.  They say nothing about whether a language model will produce a parseable
 output (that is the parser's job), nothing about the model's internals, and nothing about
-interfaces whose shape is not a count.  Within their scope they deliver, for the list
-fragment, the three properties that Kodamai's ``math-first'' programme asks of enterprise
-agents \cite{KodamaiEEJ26}: adapters are verified rather than tested (``error-proof''),
-interfaces are typed contracts specific to the data flowing through them
-(``specialised''), and a component can be swapped for another with the same interface,
-with the equations between adapters guaranteeing that the swap is behaviour-preserving
-(``adaptive'').  Extending the decidable fragment beyond lists --- to trees, to interfaces
-indexed by several counts, to the mode-dependent interfaces of \cite{Spivak26} --- is the
-natural next step, and \S\ref{sec:conclusion} outlines it.
+interfaces whose moves are not lists, beyond what can be reached through a morphism such
+as $\fn{flatten}$.  Within their scope they deliver, for the list fragment, three things
+that Kodamai's ``math-first'' programme asks of enterprise agents
+\cite{KodamaiEEJ26,KodamaiPR26}: adapters are verified rather than tested, so that an
+error in the plumbing cannot propagate silently; interfaces are typed contracts specific
+to the data flowing through them; and a component can be exchanged for another with the
+same interface, with the equations between adapters guaranteeing that the exchange
+preserves behaviour.  Extending the decidable fragment beyond lists --- to trees, to
+interfaces indexed by several counts, to the mode-dependent interfaces of
+\cite{Spivak26} --- is the natural next step, and \S\ref{sec:conclusion} outlines it.
 
 % ===========================================================================
 \section{Related Work}\label{sec:related}
@@ -1437,15 +1726,15 @@ semantic account of strictly positive data types, and extended to indexed contai
 \cite{AltenkirchGhaniHancockMcBrideMorris15}.  Polynomial functors, the same objects in a
 categorical dress, were studied by Gambino and Kock \cite{GambinoKock13} and taken up by
 Spivak as a setting for ``mode-dependent dynamics'' \cite{Spivak20}; the monograph of Niu
-and Spivak \cite{NiuSpivak24} develops the category $\Poly$ systematically, including the
+and Spivak \cite{NiuSpivak25} develops the category $\Poly$ systematically, including the
 reading of lenses as interfaces of interacting systems that \S\ref{sec:agents} adopts.
 Libkind and Spivak \cite{LibkindSpivak24} use polynomial functors to model hierarchical
 task delegation between agents, with morphisms as delegations; our adapters are the
 special case of list-shaped interfaces, and our contribution is the decision procedure
 for that case.  Spivak's recent work on interfaces that change during interaction
 \cite{Spivak26} suggests where a richer decidable fragment might be sought.  Lenses as
-bidirectional transformations go back to the view-update problem; their use in
-compositional game theory \cite{GhaniHedgesWinschelZahn18} and categorical cybernetics
+bidirectional transformations go back to the view-update problem \cite{FosterEtAl07};
+their use in compositional game theory \cite{GhaniHedgesWinschelZahn18} and categorical cybernetics
 \cite{CapucciGavranovicHedgesRischel22} is the nearest precedent for ``adapters that route
 information backwards''.
 
@@ -1459,12 +1748,12 @@ treated in \cite{AltenkirchMcBrideMorris07,Morris07}.
 addressed in practice by structured-output APIs that constrain generation to a JSON schema
 \cite{OpenAIStructured24} and by tool protocols such as the Model Context Protocol
 \cite{MCP24}, which type tool invocations and results.  Kodamai's Calvin Grove platform
-\cite{KodamaiEEJ26} composes agents as typed microservices whose interfaces are
-``contracts'', with the stated aim of correctness by construction; Ghani describes its
-type system as built on containers, with agents as first-class values that can be passed
-to and returned by other agents \cite{GhaniPodcast26}.  The present paper supplies a
+\cite{KodamaiEEJ26} composes agents as modules that communicate through typed
+interfaces, which it calls contracts, with ``meta-agents'' above the individual agents;
+Ghani describes its type system as built on containers, with agents as first-class
+values that can be passed to and returned by other agents \cite{GhaniPodcast26}.  The present paper supplies a
 decision procedure for one fragment of such a type system.  On the proof side, Harmonic's
-Aristotle \cite{Harmonic25} and DeepMind's AlphaProof \cite{AlphaProof24} produce
+Aristotle \cite{Harmonic25} and DeepMind's AlphaProof \cite{AlphaProof25} produce
 Lean proofs checked by the kernel; \S\ref{sec:generate-check} places our procedure in the
 same proposer/checker architecture.
 
@@ -1490,8 +1779,8 @@ Omega test \cite{Pugh91} has been used for timing verification \cite{AmonBHL97} 
 datapath verification \cite{BrinkmannDrechsler02,JohannsenDrechsler01}.  In proof
 assistants, Coq's \coq{omega} has been superseded by the certificate-checking \coq{lia}
 of the Micromega plugin, and Lean~4 acquired an \coq{omega} decision procedure in 2024
-\cite{Lean470}; the procedure of this paper is independent of the choice and would port to
-Lean directly.  The canonical form for piecewise-linear functions of Chua and Kang
+\cite{Lean470}; the procedure of this paper is independent of the choice and should port
+to Lean directly.  The canonical form for piecewise-linear functions of Chua and Kang
 \cite{ChuaKang77}, used in \cite[Ch.~5]{Prince10} to decide equality of piecewise-linear
 functions over ordered fields, is not needed here because the statements of
 Theorem~\ref{thm:decidable} are handled directly by the arithmetic procedure; Carette
@@ -1508,8 +1797,8 @@ piecewise linear, and how the resulting decision procedure proves the usual iden
 between list functions without induction.  We have then read the same mathematics as a
 theory of typed agent interfaces: container morphisms are adapters, wrapping is
 functorial, and for list-shaped interfaces the equality and losslessness of adapters are
-decidable, with behavioural consequences for every agent so wrapped.  The accompanying
-development is new, axiom-free, and fast.
+decidable, with behavioural consequences for every agent so wrapped, and both lift to
+lists of typed items.  All of this is mechanised, without axioms.
 
 Several directions remain.
 
@@ -1521,21 +1810,25 @@ quantification over the inner index and may leave the universal fragment.  For o
 types a promising starting point is the data types with a \emph{cartesian} morphism into
 lists, of which flattening (\S\ref{sec:trees}) is the paradigm.  Through such a morphism,
 reindexing maps between trees may be representable as reindexing maps between lists, and
-hence decided: an equation $m = m'$ between tree adapters whose position maps are
-determined by their flattenings would reduce to an equation between list adapters, and the
-question is for which classes of tree adapters this reduction is complete.
+hence decided: an equation between tree adapters whose position maps are determined by
+their flattenings would reduce to an equation between list adapters, and the question is
+for which classes of tree adapters this reduction is complete.  On the list side, the
+bridge of Theorem~\ref{thm:bridge} is established for arity~1; extending it to the
+arity-$k$ morphisms, whose source is a product of list containers, is routine but has not
+been mechanised.
 
 \paragraph{Full Presburger arithmetic.}  Properties with existential content ---
 surjectivity of a position map, or the existence of a split point with some property ---
-leave the universal fragment.  They remain decidable, by Cooper's algorithm or by
-automata-based procedures, at a higher cost.  An implementation along the lines of
+leave the universal fragment.  They remain decidable, by Cooper's algorithm
+\cite{Cooper72} or by automata-based procedures, at a higher cost.  An implementation along the lines of
 \cite{HabermehlIosifVojnar08} would extend the range of adapter properties that can be
 checked.
 
-\paragraph{Higher-order adapters.}  $\Poly$ is monoidal closed \cite{NiuSpivak24}, so the
-adapters between two interfaces form an interface $[I, J]$, and ``meta-agents'' that take
-agents as inputs and return agents \cite{GhaniPodcast26} are agents on such interfaces.
-Our procedure decides equality in the list-shaped, Presburger fragment of $[I, J]$; a
+\paragraph{Higher-order adapters.}  $\Poly$ is closed for the parallel product
+\cite{NiuSpivak25}: there is an interface $[I, J]$ whose moves are the adapters from $I$
+to $J$, and ``meta-agents'' that take agents as inputs and return agents
+\cite{KodamaiEEJ26,GhaniPodcast26} are naturally agents on such interfaces.  Our procedure
+decides equality of the moves of $[I, J]$ in the list-shaped, Presburger fragment; a
 natural question is whether a decidable fragment of the full internal hom can be
 identified, which would make the typing of meta-agents checkable rather than merely
 expressible.
@@ -1543,21 +1836,19 @@ expressible.
 \paragraph{Mode-dependent interfaces.}  Interfaces whose positions depend on the
 history of the interaction \cite{Spivak26} are the general case of a context window: the
 window's shape at step $t$ depends on everything emitted so far.  The window invariants of
-\S\ref{sec:worked} are the first examples of equations between such interfaces that can be
-decided; characterising the decidable fragment is open.
+\S\ref{sec:worked} are simple instances of equations about such history-dependent
+presentations that can be decided; characterising a decidable fragment is open.
 
 \paragraph{Portability.}  Nothing in the development depends on Coq specifically.  A Lean~4
 port, using its \coq{omega} tactic, would bring the procedure to the proof assistant in
-which most LLM-generated proofs are currently checked.
+which much machine-generated mathematics is currently checked
+\cite{Harmonic25,AlphaProof25}.
 
 \section*{Acknowledgements}
 
 I am grateful to Neil Ghani for suggesting that this work be revisited in the light of
 agentic AI and for the conversations that shaped \S\ref{sec:agents}, and to Thorsten
 Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arith} builds.
-%\todo{Rawle: journals increasingly require a statement on the use of AI tools in preparing
-%a manuscript; the revision was drafted with the assistance of an AI model and then
-%checked by the author --- decide whether and how to state this.}
 
 % ===========================================================================
 \begin{thebibliography}{99}
@@ -1569,9 +1860,7 @@ Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arit
 
 \bibitem{AbbottAltenkirchGhani05} M.~Abbott, T.~Altenkirch and N.~Ghani.  Containers: constructing strictly positive types.  \emph{Theoretical Computer Science} 342(1):3--27, 2005.
 
-\bibitem{AbbottAltenkirchGhaniMcBride04} M.~Abbott, T.~Altenkirch, N.~Ghani and C.~McBride.  Constructing polymorphic programs with quotient types.  In \emph{Mathematics of Program Construction (MPC 2004)}, LNCS 3125.  Springer, 2004.
-
-\bibitem{AlphaProof24} AlphaProof and AlphaGeometry teams.  AI achieves silver-medal standard solving International Mathematical Olympiad problems.  Google DeepMind, July 2024.
+\bibitem{AbbottAltenkirchGhaniMcBride04} M.~Abbott, T.~Altenkirch, N.~Ghani and C.~McBride.  Constructing polymorphic programs with quotient types.  In D.~Kozen (ed.), \emph{Mathematics of Program Construction (MPC 2004)}, LNCS 3125, pp.~2--15.  Springer, 2004.
 
 \bibitem{AltenkirchGhaniHancockMcBrideMorris15} T.~Altenkirch, N.~Ghani, P.~Hancock, C.~McBride and P.~Morris.  Indexed containers.  \emph{Journal of Functional Programming} 25, e5, 2015.
 
@@ -1579,9 +1868,9 @@ Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arit
 
 \bibitem{AmonBHL97} T.~Amon, G.~Borriello, T.~Hu and J.~Liu.  Symbolic timing verification of timing diagrams using Presburger formulas.  In \emph{DAC '97}, pp.~226--231.  ACM, 1997.
 
-\bibitem{AronsPRXZ01} T.~Arons, A.~Pnueli, S.~Ruah, Y.~Xu and L.~Zuck.  Parameterized verification with automatically computed inductive assertions.  In \emph{CAV 2001}, LNCS 2102, pp.~221--234.  Springer, 2001.
+\bibitem{MCP24} Anthropic.  Introducing the Model Context Protocol.  November 2024.  \url{https://www.anthropic.com/news/model-context-protocol}
 
-\bibitem{Buchi60} J.~R.~B\"uchi.  Weak second-order arithmetic and finite automata.  \emph{Mathematical Logic Quarterly} 6:66--92, 1960.
+\bibitem{AronsPRXZ01} T.~Arons, A.~Pnueli, S.~Ruah, Y.~Xu and L.~Zuck.  Parameterized verification with automatically computed inductive assertions.  In \emph{CAV 2001}, LNCS 2102, pp.~221--234.  Springer, 2001.
 
 \bibitem{BouajjaniDrEnSi09} A.~Bouajjani, C.~Dr\u{a}goi, C.~Enea and M.~Sighireanu.  A logic-based framework for reasoning about composite data structures.  In \emph{CONCUR 2009}, LNCS 5710, pp.~178--195.  Springer, 2009.
 
@@ -1589,7 +1878,9 @@ Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arit
 
 \bibitem{BrinkmannDrechsler02} R.~Brinkmann and R.~Drechsler.  RTL-datapath verification using integer linear programming.  In \emph{ASP-DAC '02}, p.~741.  IEEE, 2002.
 
-\bibitem{BundyRichardson99} A.~Bundy and J.~Richardson.  Proofs about lists using ellipsis.  In \emph{Logic Programming and Automated Reasoning (LPAR '99)}, LNCS 1705.  Springer, 1999.
+\bibitem{Buchi60} J.~R.~B\"uchi.  Weak second-order arithmetic and finite automata.  \emph{Zeitschrift f\"ur mathematische Logik und Grundlagen der Mathematik} 6:66--92, 1960.
+
+\bibitem{BundyRichardson99} A.~Bundy and J.~Richardson.  Proofs about lists using ellipsis.  In \emph{Logic for Programming and Automated Reasoning (LPAR '99)}, LNCS 1705, pp.~1--12.  Springer, 1999.
 
 \bibitem{CapucciGavranovicHedgesRischel22} M.~Capucci, B.~Gavranovi\'c, J.~Hedges and E.~F.~Rischel.  Towards foundations of categorical cybernetics.  In \emph{Applied Category Theory 2021}, EPTCS 372, pp.~235--248, 2022.
 
@@ -1597,30 +1888,38 @@ Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arit
 
 \bibitem{ChuaKang77} L.~O.~Chua and S.~M.~Kang.  Section-wise piecewise-linear functions: canonical representation, properties, and applications.  \emph{Proceedings of the IEEE} 65(6):915--929, 1977.
 
+\bibitem{Cooper72} D.~C.~Cooper.  Theorem proving in arithmetic without multiplication.  In \emph{Machine Intelligence 7}, pp.~91--99.  Edinburgh University Press, 1972.
+
+\bibitem{FischerRabin74} M.~J.~Fischer and M.~O.~Rabin.  Super-exponential complexity of Presburger arithmetic.  In \emph{Complexity of Computation}, SIAM--AMS Proceedings 7, pp.~27--41, 1974.
+
+\bibitem{FosterEtAl07} J.~N.~Foster, M.~B.~Greenwald, J.~T.~Moore, B.~C.~Pierce and A.~Schmitt.  Combinators for bidirectional tree transformations: a linguistic approach to the view-update problem.  \emph{ACM Transactions on Programming Languages and Systems} 29(3), article 17, 2007.
+
 \bibitem{GambinoKock13} N.~Gambino and J.~Kock.  Polynomial functors and polynomial monads.  \emph{Mathematical Proceedings of the Cambridge Philosophical Society} 154(1):153--192, 2013.
 
 \bibitem{GhaniHedgesWinschelZahn18} N.~Ghani, J.~Hedges, V.~Winschel and P.~Zahn.  Compositional game theory.  In \emph{LICS 2018}, pp.~472--481.  ACM, 2018.
 
-\bibitem{GhaniPodcast26} N.~Ghani, interviewed by T.~Altenkirch and D.~Sarikaya.  Category theory meets agentic AI.  \emph{About Logic} podcast, 23 September, \url{https://www.youtube.com/watch?v=FbtlLc352fs}, 2026.
+\bibitem{GhaniPodcast26} N.~Ghani, in conversation with T.~Altenkirch and D.~Sarikaya.  Category theory meets agentic AI.  \emph{aboutlogic} podcast, 23 September 2026.  \url{https://www.youtube.com/watch?v=FbtlLc352fs}
 
 \bibitem{GhilardiNRZ07} S.~Ghilardi, E.~Nicolini, S.~Ranise and D.~Zucchelli.  Decision procedures for extensions of the theory of arrays.  \emph{Annals of Mathematics and Artificial Intelligence} 50:231--254, 2007.
 
 \bibitem{HabermehlIosifVojnar08} P.~Habermehl, R.~Iosif and T.~Vojnar.  What else is decidable about integer arrays?  In \emph{FOSSACS 2008}, LNCS 4962, pp.~474--489.  Springer, 2008.
 
-\bibitem{Harmonic25} Harmonic.  Aristotle: gold-medal performance at the International Mathematical Olympiad with formally verified Lean proofs.  Technical report, arXiv:2510.01346, October 2025.
+\bibitem{Harmonic25} T.~Achim, A.~Best, A.~Bietti, K.~Der, M.~F\'ed\'erico et al.  Aristotle: IMO-level automated theorem proving.  arXiv:2510.01346, October 2025.
+
+\bibitem{AlphaProof25} T.~Hubert, R.~Mehta, L.~Sartran et al.  Olympiad-level formal mathematical reasoning with reinforcement learning.  \emph{Nature}, 2025.  \url{https://doi.org/10.1038/s41586-025-09833-y}
 
 \bibitem{JohannsenDrechsler01} P.~Johannsen and R.~Drechsler.  Formal verification on the RT level computing one-to-one design abstractions by signal width reduction.  In \emph{VLSI-SoC 2001}, pp.~127--132, 2001.
 
-\bibitem{KodamaiEEJ26} M.~Achour, interviewed by A.~Dalton.  Math-first AI: how Kodamai embeds verification and trust.  \emph{EE Journal}, Amelia's Weekly Fish Fry, episode 692, 2026.
+\bibitem{KodamaiEEJ26} M.~Achour, interviewed by A.~Dalton.  Math-first AI: how Kodamai embeds verification and trust.  \emph{EE Journal}, Amelia's Weekly Fish Fry, episode 692, 31 July 2026.
   \url{https://www.eejournal.com/fish_fry/math-first-ai-how-kodamai-embeds-verification-and-trust/}
+
+\bibitem{KodamaiPR26} Kodamai.  Kodamai solves enterprise AI's hardest problem: making autonomous agents provably correct at scale.  Press release, 13 April 2026; as carried by \emph{City A.M.}, \url{https://www.cityam.com/?p=2414656}
 
 \bibitem{KreiselKrivine67} G.~Kreisel and J.-L.~Krivine.  \emph{Elements of Mathematical Logic: Model Theory}.  North-Holland, 1967.
 
 \bibitem{Lean470} Lean FRO.  Lean 4.7.0 release notes (the \texttt{omega} tactic).  April 2024.  \url{https://lean-lang.org/blog/2024-4-4-lean-470}
 
 \bibitem{LibkindSpivak24} S.~Libkind and D.~I.~Spivak.  Dynamic task delegation for hierarchical agents.  arXiv:2410.08373, 2024.
-
-\bibitem{MCP24} Anthropic.  Introducing the Model Context Protocol.  November 2024.  \url{https://www.anthropic.com/news/model-context-protocol}
 
 \bibitem{McBride99} C.~McBride.  \emph{Dependently Typed Functional Programs and their Proofs}.  Ph.D.\ thesis, University of Edinburgh, 1999.
 
@@ -1630,9 +1929,11 @@ Altenkirch and Conor McBride for their part in the work on which \S\ref{sec:arit
 
 \bibitem{Morris07} P.~Morris.  \emph{Constructing Universes for Generic Programming}.  Ph.D.\ thesis, University of Nottingham, 2007.
 
-\bibitem{NiuSpivak24} N.~Niu and D.~I.~Spivak.  \emph{Polynomial Functors: A Mathematical Theory of Interaction}.  Cambridge University Press, 2024 (arXiv:2312.00990).
+\bibitem{NiuSpivak25} N.~Niu and D.~I.~Spivak.  \emph{Polynomial Functors: A Mathematical Theory of Interaction}.  Cambridge University Press, 2025 (arXiv:2312.00990).
 
 \bibitem{OpenAIStructured24} OpenAI.  Introducing Structured Outputs in the API.  August 2024.  \url{https://openai.com/index/introducing-structured-outputs-in-the-api/}
+
+\bibitem{Papadimitriou81} C.~H.~Papadimitriou.  On the complexity of integer programming.  \emph{Journal of the ACM} 28(4):765--768, 1981.
 
 \bibitem{Presburger29} M.~Presburger.  \"Uber die Vollst\"andigkeit eines gewissen Systems der Arithmetik ganzer Zahlen, in welchem die Addition als einzige Operation hervortritt.  In \emph{Comptes Rendus du I$^{er}$ Congr\`es des Math\'ematiciens des Pays Slaves}, pp.~92--101, Warsaw, 1929.
 

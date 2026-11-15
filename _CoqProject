@@ -3,3 +3,4 @@ theories/Piecewise.v
 theories/ListMorphisms.v
 theories/Examples.v
 theories/Containers.v
+theories/AgentExamples.v

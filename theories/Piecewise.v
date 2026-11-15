@@ -1,23 +1,18 @@
 (** * Piecewise-linear arithmetic terms
 
-    Accompanies: R. Prince, "Arithmetic Analysis of Polymorphic Programs and
-    Typed Agent Interfaces" (revised submission to Fundamenta Informaticae).
+    Part of the development accompanying "Arithmetic Analysis of Polymorphic
+    Programs and the Verification of Typed Agent Interfaces".
 
     This file gives a small syntax for Presburger-definable functions
     [nat^k -> nat]: linear terms built from variables, constants, addition and
     cut-off subtraction, together with a conditional ("piecewise") layer.  The
     syntax is deliberately non-dependent: variables are natural-number indices
     into an environment [rho : nat -> nat].  Every function expressible here is
-    definable in Presburger arithmetic (Lemma [presburger_definable] below gives
-    the graph as a quantifier-free formula), which is why the [lia] decision
-    procedure can discharge equalities between them.
+    definable in Presburger arithmetic (the lemmas [suB_graph] and [pf_graph]
+    below are the two inductive steps of the translation), which is why the
+    [lia] decision procedure can discharge equalities between them. *)
 
-    Compared with the 2011 development (file [DecidableFunctions.v] in the
-    [legacy/] directory) the representation is simpler (no [Fin]-indexed
-    variables, no vectors) and the proofs are shorter; the mathematical content
-    is the same. *)
-
-From Coq Require Import Arith Lia Bool PeanoNat Compare_dec.
+From Coq Require Import Arith Lia PeanoNat Compare_dec.
 
 Set Implicit Arguments.
 
@@ -154,11 +149,11 @@ Qed.
 (** ** Presburger definability
 
     The graph of every piecewise term is definable by a quantifier-free formula
-    of Presburger arithmetic.  We make this explicit, since it is the formal
-    reason why [lia] (a decision procedure for quantifier-free linear integer
-    arithmetic) suffices for all the equalities proved in this development.
-    Formulas are represented as Coq propositions built from [=], [<=], [/\],
-    [\/]; the lemma states that evaluation is characterised by such a formula. *)
+    of Presburger arithmetic (the definability lemma of Section 4.3 of the
+    paper).  The proof is by induction on the term; the two lemmas below are
+    its inductive steps, for cut-off subtraction and for the conditional.  This is the formal reason why
+    [lia], a decision procedure for quantifier-free linear integer arithmetic,
+    suffices for the statements proved in this development. *)
 
 Lemma suB_graph : forall a b r : nat, r = a - b <-> (b <= a /\ r + b = a) \/ (a < b /\ r = 0).
 Proof. intros; lia. Qed.
