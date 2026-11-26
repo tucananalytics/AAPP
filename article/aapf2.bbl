@@ -1,0 +1,312 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi:\discretionary{}{}{}#1}\else
+  \providecommand{\doi}{doi:\discretionary{}{}{}\begingroup
+  \urlstyle{rm}\Url}\fi
+\providecommand{\eprint}[2][]{\url{#2}}
+
+\bibitem{Abbott03}
+Abbott M.
+\newblock Categories of Containers.
+\newblock Ph.D. thesis, University of Leicester, 2003.
+
+\bibitem{AbbottAltenkirchGhani03}
+Abbott M, Altenkirch T, Ghani N.
+\newblock Categories of Containers.
+\newblock In: Gordon AD (ed.), Foundations of Software Science and Computation
+  Structures ({FOSSACS} 2003), volume 2620 of \emph{LNCS}. Springer, 2003 pp.
+  23--38.
+
+\bibitem{AbbottAltenkirchGhani05}
+Abbott M, Altenkirch T, Ghani N.
+\newblock Containers: Constructing Strictly Positive Types.
+\newblock \emph{Theoretical Computer Science}, 2005.
+\newblock \textbf{342}(1):3--27.
+
+\bibitem{AltenkirchMcBrideMorris07}
+Altenkirch T, McBride C, Morris P.
+\newblock Generic Programming with Dependent Types.
+\newblock In: Datatype-Generic Programming, volume 4719 of \emph{LNCS}, pp.
+  209--257. Springer, 2007.
+
+\bibitem{Morris07}
+Morris P.
+\newblock Constructing Universes for Generic Programming.
+\newblock Ph.D. thesis, University of Nottingham, 2007.
+
+\bibitem{AbbottAltenkirchGhaniMcBride04}
+Abbott M, Altenkirch T, Ghani N, McBride C.
+\newblock Constructing Polymorphic Programs with Quotient Types.
+\newblock In: Kozen D (ed.), Mathematics of Program Construction ({MPC} 2004),
+  volume 3125 of \emph{LNCS}. Springer, 2004 pp. 2--15.
+\newblock \doi{10.1007/978-3-540-27764-4_2}.
+
+\bibitem{PrinceGhaniMcBride08}
+Prince R, Ghani N, McBride C.
+\newblock Proving Properties about Lists using Containers.
+\newblock In: Functional and Logic Programming ({FLOPS} 2008), volume 4989 of
+  \emph{LNCS}. Springer, 2008 pp. 97--112.
+\newblock \doi{10.1007/978-3-540-78969-7_9}.
+
+\bibitem{BundyRichardson99}
+Bundy A, Richardson J.
+\newblock Proofs About Lists Using Ellipsis.
+\newblock In: Logic for Programming and Automated Reasoning ({LPAR} '99),
+  volume 1705 of \emph{LNCS}. Springer, 1999 pp. 1--12.
+\newblock \doi{10.1007/3-540-48242-3_1}.
+
+\bibitem{Presburger29}
+Presburger M.
+\newblock {\"U}ber die {V}ollst{\"a}ndigkeit eines gewissen {S}ystems der
+  {A}rithmetik ganzer {Z}ahlen, in welchem die {A}ddition als einzige
+  {O}peration hervortritt.
+\newblock In: Comptes Rendus du I$^{er}$ Congr{\`e}s des Math{\'e}maticiens des
+  Pays Slaves. Warsaw, 1929 pp. 92--101.
+
+\bibitem{Pugh91}
+Pugh W.
+\newblock The {O}mega Test: A Fast and Practical Integer Programming Algorithm
+  for Dependence Analysis.
+\newblock In: Supercomputing '91. ACM, 1991 pp. 4--13.
+
+\bibitem{GhaniPodcast26}
+Ghani N.
+\newblock Category Theory Meets Agentic {AI}.
+\newblock In conversation with T.~Altenkirch and D.~Sarikaya, \emph{aboutlogic}
+  podcast, 23 September 2026.
+  \url{https://www.youtube.com/watch?v=FbtlLc352fs}, 2026.
+
+\bibitem{Spivak20}
+Spivak DI.
+\newblock Poly: An Abundant Categorical Setting for Mode-Dependent Dynamics.
+\newblock arXiv:2005.01894, 2020.
+
+\bibitem{NiuSpivak25}
+Niu N, Spivak DI.
+\newblock Polynomial Functors: A Mathematical Theory of Interaction.
+\newblock Cambridge University Press, 2025.
+\newblock ArXiv:2312.00990.
+
+\bibitem{KodamaiEEJ26}
+Achour M.
+\newblock Math-First {AI}: How {K}odamai Embeds Verification and Trust.
+\newblock Interviewed by A.~Dalton, \emph{EE Journal}, Amelia's Weekly Fish
+  Fry, episode 692, 31 July 2026.
+  \url{https://www.eejournal.com/fish_fry/math-first-ai-how-kodamai-embeds-verification-and-trust/},
+  2026.
+
+\bibitem{Prince10}
+Prince RCS.
+\newblock Aspects of the Theory of Containers within Automated Theorem Proving.
+\newblock Ph.D. thesis, University of Nottingham, 2010.
+
+\bibitem{McBrideMcKinna04}
+McBride C, McKinna J.
+\newblock The View from the Left.
+\newblock \emph{Journal of Functional Programming}, 2004.
+\newblock \textbf{14}(1):69--111.
+
+\bibitem{McBride00}
+McBride C.
+\newblock Elimination with a Motive.
+\newblock In: Types for Proofs and Programs ({TYPES} 2000), volume 2277 of
+  \emph{LNCS}. Springer, 2002 pp. 197--216.
+
+\bibitem{McBride99}
+McBride C.
+\newblock Dependently Typed Functional Programs and their Proofs.
+\newblock Ph.D. thesis, University of Edinburgh, 1999.
+
+\bibitem{OpenAIStructured24}
+{OpenAI}.
+\newblock Introducing {S}tructured {O}utputs in the {API}.
+\newblock
+  \url{https://openai.com/index/introducing-structured-outputs-in-the-api/},
+  2024.
+
+\bibitem{MCP24}
+{Anthropic}.
+\newblock Introducing the {M}odel {C}ontext {P}rotocol.
+\newblock \url{https://www.anthropic.com/news/model-context-protocol}, 2024.
+
+\bibitem{FosterEtAl07}
+Foster JN, Greenwald MB, Moore JT, Pierce BC, Schmitt A.
+\newblock Combinators for Bidirectional Tree Transformations: A Linguistic
+  Approach to the View-Update Problem.
+\newblock \emph{ACM Transactions on Programming Languages and Systems}, 2007.
+\newblock \textbf{29}(3):17.
+
+\bibitem{LibkindSpivak24}
+Libkind S, Spivak DI.
+\newblock Dynamic Task Delegation for Hierarchical Agents.
+\newblock arXiv:2410.08373, 2024.
+
+\bibitem{Papadimitriou81}
+Papadimitriou CH.
+\newblock On the Complexity of Integer Programming.
+\newblock \emph{Journal of the ACM}, 1981.
+\newblock \textbf{28}(4):765--768.
+
+\bibitem{FischerRabin74}
+Fischer MJ, Rabin MO.
+\newblock Super-Exponential Complexity of {P}resburger Arithmetic.
+\newblock In: Complexity of Computation, volume~7 of \emph{SIAM--AMS
+  Proceedings}, pp. 27--41. American Mathematical Society, 1974.
+
+\bibitem{Prince05}
+Prince R.
+\newblock An Extension of the Ellipsis Technique.
+\newblock Master's thesis, School of Informatics, University of Edinburgh,
+  2005.
+
+\bibitem{Harmonic25}
+Achim T, Best A, Bietti A, Der K, F{\'e}d{\'e}rico M, et~al.
+\newblock Aristotle: {IMO}-level Automated Theorem Proving.
+\newblock arXiv:2510.01346, 2025.
+
+\bibitem{AlphaProof25}
+Hubert T, Mehta R, Sartran L, et~al.
+\newblock Olympiad-level Formal Mathematical Reasoning with Reinforcement
+  Learning.
+\newblock \emph{Nature}, 2025.
+\newblock \doi{10.1038/s41586-025-09833-y}.
+
+\bibitem{KodamaiPR26}
+{Kodamai}.
+\newblock Kodamai Solves Enterprise {AI}'s Hardest Problem: Making Autonomous
+  Agents Provably Correct at Scale.
+\newblock Press release, 13 April 2026, as carried by \emph{City A.M.}
+  \url{https://www.cityam.com/?p=2414656}, 2026.
+
+\bibitem{Spivak26}
+Spivak DI.
+\newblock Interactions that Reshape the Interfaces of the Interacting Parties.
+\newblock arXiv:2602.17917, 2026.
+
+\bibitem{AltenkirchGhaniHancockMcBrideMorris15}
+Altenkirch T, Ghani N, Hancock P, McBride C, Morris P.
+\newblock Indexed Containers.
+\newblock \emph{Journal of Functional Programming}, 2015.
+\newblock \textbf{25}:e5.
+
+\bibitem{GambinoKock13}
+Gambino N, Kock J.
+\newblock Polynomial Functors and Polynomial Monads.
+\newblock \emph{Mathematical Proceedings of the Cambridge Philosophical
+  Society}, 2013.
+\newblock \textbf{154}(1):153--192.
+
+\bibitem{GhaniHedgesWinschelZahn18}
+Ghani N, Hedges J, Winschel V, Zahn P.
+\newblock Compositional Game Theory.
+\newblock In: Logic in Computer Science ({LICS} 2018). ACM, 2018 pp. 472--481.
+
+\bibitem{CapucciGavranovicHedgesRischel22}
+Capucci M, Gavranovi{\'c} B, Hedges J, Rischel EF.
+\newblock Towards Foundations of Categorical Cybernetics.
+\newblock In: Applied Category Theory 2021, volume 372 of \emph{EPTCS}. 2022
+  pp. 235--248.
+
+\bibitem{SuterDottaKuncak10}
+Suter P, Dotta M, Kuncak V.
+\newblock Decision Procedures for Algebraic Data Types with Abstractions.
+\newblock In: Principles of Programming Languages ({POPL} 2010). ACM, 2010 pp.
+  199--210.
+
+\bibitem{ZhangSipmaManna04}
+Zhang T, Sipma HB, Manna Z.
+\newblock Decision Procedures for Recursive Data Structures with Integer
+  Constraints.
+\newblock In: International Joint Conference on Automated Reasoning ({IJCAR}
+  2004), volume 3097 of \emph{LNCS}. Springer, 2004 pp. 152--167.
+
+\bibitem{BouajjaniDrEnSi09}
+Bouajjani A, Dr{\u{a}}goi C, Enea C, Sighireanu M.
+\newblock A Logic-Based Framework for Reasoning about Composite Data
+  Structures.
+\newblock In: Concurrency Theory ({CONCUR} 2009), volume 5710 of \emph{LNCS}.
+  Springer, 2009 pp. 178--195.
+
+\bibitem{GhilardiNRZ07}
+Ghilardi S, Nicolini E, Ranise S, Zucchelli D.
+\newblock Decision Procedures for Extensions of the Theory of Arrays.
+\newblock \emph{Annals of Mathematics and Artificial Intelligence}, 2007.
+\newblock \textbf{50}:231--254.
+
+\bibitem{BradleyMannaSipma06}
+Bradley AR, Manna Z, Sipma HB.
+\newblock What's Decidable About Arrays?
+\newblock In: Verification, Model Checking, and Abstract Interpretation
+  ({VMCAI} 2006), volume 3855 of \emph{LNCS}. Springer, 2006 pp. 427--442.
+
+\bibitem{HabermehlIosifVojnar08}
+Habermehl P, Iosif R, Vojnar T.
+\newblock What Else Is Decidable about Integer Arrays?
+\newblock In: Foundations of Software Science and Computational Structures
+  ({FOSSACS} 2008), volume 4962 of \emph{LNCS}. Springer, 2008 pp. 474--489.
+
+\bibitem{Buchi60}
+B{\"u}chi JR.
+\newblock Weak Second-Order Arithmetic and Finite Automata.
+\newblock \emph{Zeitschrift f{\"u}r mathematische Logik und Grundlagen der
+  Mathematik}, 1960.
+\newblock \textbf{6}:66--92.
+
+\bibitem{AronsPRXZ01}
+Arons T, Pnueli A, Ruah S, Xu Y, Zuck L.
+\newblock Parameterized Verification with Automatically Computed Inductive
+  Assertions.
+\newblock In: Computer Aided Verification ({CAV} 2001), volume 2102 of
+  \emph{LNCS}. Springer, 2001 pp. 221--234.
+
+\bibitem{KreiselKrivine67}
+Kreisel G, Krivine JL.
+\newblock Elements of Mathematical Logic: Model Theory.
+\newblock North-Holland, 1967.
+
+\bibitem{AmonBHL97}
+Amon T, Borriello G, Hu T, Liu J.
+\newblock Symbolic Timing Verification of Timing Diagrams using {P}resburger
+  Formulas.
+\newblock In: Design Automation Conference ({DAC} '97). ACM, 1997 pp. 226--231.
+
+\bibitem{BrinkmannDrechsler02}
+Brinkmann R, Drechsler R.
+\newblock {RTL}-Datapath Verification using Integer Linear Programming.
+\newblock In: Asia and South Pacific Design Automation Conference ({ASP-DAC}
+  '02). IEEE, 2002 p. 741.
+
+\bibitem{JohannsenDrechsler01}
+Johannsen P, Drechsler R.
+\newblock Formal Verification on the {RT} Level Computing One-to-One Design
+  Abstractions by Signal Width Reduction.
+\newblock In: Very Large Scale Integration of Systems-on-Chip ({VLSI-SoC}
+  2001). 2001 pp. 127--132.
+
+\bibitem{Lean470}
+{Lean FRO}.
+\newblock Lean 4.7.0 release notes (the \texttt{omega} tactic).
+\newblock \url{https://lean-lang.org/blog/2024-4-4-lean-470}, 2024.
+
+\bibitem{ChuaKang77}
+Chua LO, Kang SM.
+\newblock Section-wise Piecewise-Linear Functions: Canonical Representation,
+  Properties, and Applications.
+\newblock \emph{Proceedings of the IEEE}, 1977.
+\newblock \textbf{65}(6):915--929.
+
+\bibitem{Carette07}
+Carette J.
+\newblock A Canonical Form for Piecewise Defined Functions.
+\newblock In: International Symposium on Symbolic and Algebraic Computation
+  ({ISSAC} '07). ACM, 2007 pp. 77--84.
+
+\bibitem{Cooper72}
+Cooper DC.
+\newblock Theorem Proving in Arithmetic without Multiplication.
+\newblock In: Machine Intelligence 7, pp. 91--99. Edinburgh University Press,
+  1972.
+
+\end{thebibliography}

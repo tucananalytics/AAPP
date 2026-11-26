@@ -18,5 +18,4 @@ article/*.toc
 article/*.synctex.gz
 article/*.fls
 article/*.fdb_latexmk
-article/*.bbl
 article/*.blg

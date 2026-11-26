@@ -361,6 +361,187 @@ Proof.
     + simpl. rewrite !ext_neq; auto.
 Qed.
 
+(** *** Evaluating composites
+
+    An environment that arises from [k] inputs is zero beyond [k].  On such
+    environments a composite evaluates as composition of container morphisms
+    does: shapes compose forwards and positions backwards.  The four lemmas
+    below are what links [comp1] and [comp2] to composition and pairing of
+    container morphisms in [Containers]. *)
+
+Definition env2 (n1 n2 : nat) : nat -> nat :=
+  fun j => if j =? 0 then n1 else if j =? 1 then n2 else 0.
+
+Definition vanishes (k : nat) (rho : nat -> nat) : Prop := forall j, k <= j -> rho j = 0.
+
+Lemma vanishes_env1 : forall n, vanishes 1 (env1 n).
+Proof. intros n [| j] H; [lia | reflexivity]. Qed.
+
+Lemma vanishes_env2 : forall n1 n2, vanishes 2 (env2 n1 n2).
+Proof. intros n1 n2 [| [| j]] H; [lia | lia | reflexivity]. Qed.
+
+Lemma shield_vanish : forall k p rho, vanishes k rho -> pevl (shield k p) rho = pevl p rho.
+Proof.
+  intros k p rho Hv. rewrite shield_ok. apply pevl_ext; intros j.
+  destruct (Nat.ltb_spec j k); [reflexivity | symmetry; apply Hv; assumption].
+Qed.
+
+Lemma shield_vanish_ext : forall k p rho i,
+    vanishes k rho -> pevl (shield k p) (ext rho k i) = pevl p rho.
+Proof.
+  intros k p rho i Hv. rewrite shield_ok. apply pevl_ext; intros j.
+  destruct (Nat.ltb_spec j k); [apply ext_neq; lia | symmetry; apply Hv; assumption].
+Qed.
+
+Lemma comp1_shape_gen : forall k (l r : PPCm) rho,
+    vanishes k rho ->
+    pevl (shape (comp1 k l r)) rho = pevl (shape l) (env1 (pevl (shape r) rho)).
+Proof.
+  intros k l r rho Hv. unfold comp1, shape; cbn [fst]. rewrite psubst_ok.
+  apply pevl_ext; intros [| j]; [| reflexivity].
+  cbn [Nat.eqb]. unfold env1; cbn [Nat.eqb]. apply shield_vanish; exact Hv.
+Qed.
+
+Lemma comp1_pos_gen : forall k (l r : PPCm) rho i,
+    vanishes k rho ->
+    pevl (pos (comp1 k l r)) (ext rho k i)
+    = pevl (pos r) (ext rho k (pevl (pos l) (ext (env1 (pevl (shape r) rho)) 1 i))).
+Proof.
+  intros k l r rho i Hv. unfold comp1, pos, shape; cbn [fst snd]. rewrite psubst_ok.
+  apply pevl_ext; intros j.
+  destruct (Nat.eqb_spec j k) as [-> | Hj].
+  - rewrite ext_eq, psubst_ok. apply pevl_ext; intros [| [| j']]; cbn [Nat.eqb].
+    + unfold ext, env1; cbn [Nat.eqb]. apply (shield_vanish_ext (fst r) i Hv).
+    + cbn [pevl evl]. rewrite ext_eq. reflexivity.
+    + reflexivity.
+  - cbn [pevl evl]. rewrite !ext_neq by assumption. reflexivity.
+Qed.
+
+Lemma comp2_shape_gen : forall k (l r1 r2 : PPCm) rho,
+    vanishes k rho ->
+    pevl (shape (comp2 k l r1 r2)) rho
+    = pevl (shape l) (env2 (pevl (shape r1) rho) (pevl (shape r2) rho)).
+Proof.
+  intros k l r1 r2 rho Hv. unfold comp2, shape; cbn [fst]. rewrite psubst_ok.
+  apply pevl_ext; intros [| [| [| j]]]; unfold env2; cbn [Nat.eqb].
+  - apply shield_vanish; exact Hv.
+  - apply shield_vanish; exact Hv.
+  - cbn [pevl evl]. apply Hv; lia.
+  - reflexivity.
+Qed.
+
+Lemma comp2_pos_gen : forall k (l r1 r2 : PPCm) rho i,
+    vanishes k rho ->
+    pevl (pos (comp2 k l r1 r2)) (ext rho k i)
+    = if pevl (pos l) (ext (env2 (pevl (shape r1) rho) (pevl (shape r2) rho)) 2 i)
+         <? pevl (shape r1) rho
+      then pevl (pos r1)
+                (ext rho k (pevl (pos l) (ext (env2 (pevl (shape r1) rho) (pevl (shape r2) rho)) 2 i)))
+      else pevl (pos r2)
+                (ext rho k (pevl (pos l) (ext (env2 (pevl (shape r1) rho) (pevl (shape r2) rho)) 2 i)
+                            - pevl (shape r1) rho)).
+Proof.
+  intros k l r1 r2 rho i Hv. unfold comp2, pos, shape; cbn [fst snd].
+  set (a := pevl (fst r1) rho). set (b := pevl (fst r2) rho).
+  set (q := pevl (snd l) (ext (env2 a b) 2 i)).
+  set (sig := fun j => if j =? 0 then shield k (fst r1) else if j =? 1 then shield k (fst r2)
+                       else if j =? 2 then lp (vr k) else kon 0).
+  assert (Hq : pevl (psubst (snd l) sig) (ext rho k i) = q).
+  { rewrite psubst_ok. apply pevl_ext; intros [| [| [| j]]]; unfold sig, ext at 2, env2; cbn [Nat.eqb].
+    - apply shield_vanish_ext; exact Hv.
+    - apply shield_vanish_ext; exact Hv.
+    - cbn [pevl evl]. apply ext_eq.
+    - reflexivity. }
+  assert (Ha : pevl (shield k (fst r1)) (ext rho k i) = a) by (apply shield_vanish_ext; exact Hv).
+  cbn [pevl]. rewrite psub_ok, Ha, Hq.
+  destruct (le_lt_dec (a - q) 0) as [Hle | Hlt]; destruct (Nat.ltb_spec q a) as [Hqa | Hqa];
+    try (exfalso; lia).
+  - rewrite psubst_ok. apply pevl_ext; intros j.
+    destruct (Nat.eqb_spec j k) as [-> | Hj].
+    + rewrite ext_eq, psub_ok, Hq, Ha. reflexivity.
+    + cbn [pevl evl]. rewrite !ext_neq by assumption. reflexivity.
+  - rewrite psubst_ok. apply pevl_ext; intros j.
+    destruct (Nat.eqb_spec j k) as [-> | Hj].
+    + rewrite ext_eq. exact Hq.
+    + cbn [pevl evl]. rewrite !ext_neq by assumption. reflexivity.
+Qed.
+
+(** *** Closed terms
+
+    A term is closed at [k] when it mentions no variable [>= k].  The value of
+    a closed term depends only on the first [k] variables, so for closed
+    morphisms it is enough to check [pcmEQ] on the environments that arise
+    from [k] inputs. *)
+
+Fixpoint lclosed (k : nat) (e : lfun) : bool :=
+  match e with
+  | cnst _ => true
+  | vr j => j <? k
+  | adD a b => lclosed k a && lclosed k b
+  | suB a b => lclosed k a && lclosed k b
+  end.
+
+Fixpoint pclosed (k : nat) (p : Plfun) : bool :=
+  match p with
+  | lp a => lclosed k a
+  | pf c l r => pclosed k c && pclosed k l && pclosed k r
+  end.
+
+(** A morphism of arity [k]: the shape map reads the [k] lengths, the
+    position map in addition the output position (variable [k]). *)
+Definition closed (k : nat) (m : PPCm) : bool :=
+  pclosed k (shape m) && pclosed (S k) (pos m).
+
+Lemma lclosed_ok : forall k e rho rho',
+    lclosed k e = true -> (forall j, j < k -> rho j = rho' j) -> evl e rho = evl e rho'.
+Proof.
+  induction e; intros rho rho' Hc H; simpl in *.
+  - reflexivity.
+  - apply H. apply Nat.ltb_lt; exact Hc.
+  - apply andb_prop in Hc. destruct Hc as [H1 H2]. rewrite (IHe1 rho rho'), (IHe2 rho rho'); auto.
+  - apply andb_prop in Hc. destruct Hc as [H1 H2]. rewrite (IHe1 rho rho'), (IHe2 rho rho'); auto.
+Qed.
+
+Lemma pclosed_ok : forall k p rho rho',
+    pclosed k p = true -> (forall j, j < k -> rho j = rho' j) -> pevl p rho = pevl p rho'.
+Proof.
+  induction p; intros rho rho' Hc H; simpl in *.
+  - eapply lclosed_ok; eauto.
+  - apply andb_prop in Hc. destruct Hc as [Hc H3]. apply andb_prop in Hc. destruct Hc as [H1 H2].
+    rewrite (IHp1 rho rho'), (IHp2 rho rho'), (IHp3 rho rho'); auto.
+Qed.
+
+(** [pcmEQ] restricted to the environments of [k] inputs. *)
+Definition pcmEQ_on (k : nat) (l r : PPCm) : Prop :=
+  forall rho, vanishes k rho ->
+    pevl (shape l) rho = pevl (shape r) rho /\
+    forall i, i < pevl (shape l) rho ->
+              pevl (pos l) (ext rho k i) = pevl (pos r) (ext rho k i).
+
+Lemma pcmEQ_pcmEQ_on : forall k l r, pcmEQ k l r -> pcmEQ_on k l r.
+Proof. intros k l r H rho _. apply H. Qed.
+
+(** For closed morphisms the restriction loses nothing. *)
+Theorem pcmEQ_on_pcmEQ : forall k l r,
+    closed k l = true -> closed k r = true -> pcmEQ_on k l r -> pcmEQ k l r.
+Proof.
+  intros k l r Hl Hr H rho.
+  apply andb_prop in Hl. destruct Hl as [Hls Hlp].
+  apply andb_prop in Hr. destruct Hr as [Hrs Hrp].
+  set (rho' := fun j => if j <? k then rho j else 0).
+  assert (Hv : vanishes k rho').
+  { intros j Hj. unfold rho'. destruct (Nat.ltb_spec j k); [lia | reflexivity]. }
+  assert (Hag : forall j, j < k -> rho j = rho' j).
+  { intros j Hj. unfold rho'. destruct (Nat.ltb_spec j k); [reflexivity | lia]. }
+  assert (Hag' : forall i j, j < S k -> ext rho k i j = ext rho' k i j).
+  { intros i j Hj. unfold ext. destruct (Nat.eqb_spec j k); [reflexivity | apply Hag; lia]. }
+  destruct (H rho' Hv) as [Hs Hp].
+  rewrite (pclosed_ok _ rho rho' Hls Hag), (pclosed_ok _ rho rho' Hrs Hag).
+  split; [exact Hs |].
+  intros i Hi.
+  rewrite (pclosed_ok _ _ _ Hlp (Hag' i)), (pclosed_ok _ _ _ Hrp (Hag' i)). apply Hp. exact Hi.
+Qed.
+
 (** *** Composition at a single input
 
     For arity-1 morphisms evaluated at an input of length [n], the composite
@@ -431,10 +612,20 @@ Ltac containers := unfold_morphism; arith.
     [lia] proves valid statements; it does not produce counterexamples to
     invalid ones.  For arity-1 morphisms the function [find_cex] searches the
     input lengths [0 .. bound] for a length at which the shape maps differ,
-    or a position at which the position maps differ, and [find_cex_sound]
-    turns any counterexample found into a proof that the equality fails.
-    (Presburger arithmetic has the small-model property, so a sufficiently
-    large bound always exists; we do not need to compute it.) *)
+    or a position at which the position maps differ.  The search is exact:
+    it returns nothing precisely when the two morphisms agree at every input
+    length up to the bound ([find_cex_spec]), so a counterexample that is
+    found is a proof that the equality fails ([find_cex_sound]), and a
+    counterexample that exists is found once the bound reaches it. *)
+
+(** Agreement of two arity-1 morphisms on inputs of length [n]. *)
+Definition agree_at (l r : PPCm) (n : nat) : Prop :=
+  pevl (shape l) (env1 n) = pevl (shape r) (env1 n) /\
+  forall i, i < pevl (shape l) (env1 n) ->
+            pevl (pos l) (ext (env1 n) 1 i) = pevl (pos r) (ext (env1 n) 1 i).
+
+Lemma pcmEQ_agree_at : forall l r, pcmEQ 1 l r -> forall n, agree_at l r n.
+Proof. intros l r H n. exact (H (env1 n)). Qed.
 
 Inductive cex : Set :=
 | ShapeCex : nat -> cex            (** the shapes differ at input length [n] *)
@@ -480,19 +671,57 @@ Proof.
       [discriminate | inversion H; subst; split; auto].
 Qed.
 
+Lemma pos_diff_none : forall l r rho b,
+    pos_diff l r rho b = None ->
+    forall i, i < b -> pevl (pos l) (ext rho 1 i) = pevl (pos r) (ext rho 1 i).
+Proof.
+  induction b as [| b IH]; intros H i Hi; simpl in H; [lia |].
+  destruct (pos_diff l r rho b) as [j |] eqn:E; [discriminate |].
+  destruct (Nat.eqb_spec (pevl (pos l) (ext rho 1 b)) (pevl (pos r) (ext rho 1 b))) as [Eb | Eb];
+    [| discriminate].
+  destruct (Nat.eq_dec i b) as [-> | Hne]; [exact Eb | apply IH; [reflexivity | lia]].
+Qed.
+
+Lemma cex_at_spec : forall l r n, cex_at l r n = None <-> agree_at l r n.
+Proof.
+  intros l r n. unfold cex_at, agree_at.
+  destruct (Nat.eqb_spec (pevl (shape l) (env1 n)) (pevl (shape r) (env1 n))) as [Es | Es].
+  - destruct (pos_diff l r (env1 n) (pevl (shape l) (env1 n))) as [i |] eqn:E.
+    + split; [discriminate |]. intros [_ Hp].
+      destruct (pos_diff_sound _ _ _ _ E) as [Hi Hne]. exfalso. apply Hne, Hp, Hi.
+    + split; [| reflexivity]. intros _. split; [exact Es | apply pos_diff_none; exact E].
+  - split; [discriminate | intros [Hs _]; contradiction].
+Qed.
+
+Theorem find_cex_spec : forall l r b,
+    find_cex l r b = None <-> forall n, n <= b -> agree_at l r n.
+Proof.
+  intros l r. induction b as [| b IH]; simpl.
+  - rewrite cex_at_spec. split.
+    + intros H n Hn. replace n with 0 by lia. exact H.
+    + intros H. apply H. lia.
+  - destruct (find_cex l r b) as [c |] eqn:E.
+    + split; [discriminate |]. intros H.
+      exfalso. assert (Hb : Some c = None) by (apply IH; intros n Hn; apply H; lia). discriminate.
+    + rewrite cex_at_spec. split.
+      * intros H n Hn. destruct (Nat.eq_dec n (S b)) as [-> | Hne]; [exact H |].
+        apply (proj1 IH eq_refl). lia.
+      * intros H. apply H. lia.
+Qed.
+
 Lemma cex_at_sound : forall l r n c, cex_at l r n = Some c -> ~ pcmEQ 1 l r.
 Proof.
-  unfold cex_at; intros l r n c H Heq. destruct (Heq (env1 n)) as [Hs Hp].
-  destruct (Nat.eqb_spec (pevl (shape l) (env1 n)) (pevl (shape r) (env1 n))); [| contradiction].
-  destruct (pos_diff l r (env1 n) (pevl (shape l) (env1 n))) as [i |] eqn:E; [| discriminate].
-  destruct (pos_diff_sound _ _ _ _ E) as [Hi Hne]. apply Hne, Hp, Hi.
+  intros l r n c H Heq.
+  assert (Hn : cex_at l r n = None) by (apply cex_at_spec, pcmEQ_agree_at, Heq).
+  congruence.
 Qed.
 
 Theorem find_cex_sound : forall l r bound c, find_cex l r bound = Some c -> ~ pcmEQ 1 l r.
 Proof.
-  induction bound as [| b IH]; intros c H; simpl in H.
-  - eapply cex_at_sound; eauto.
-  - destruct (find_cex l r b) as [c' |] eqn:E; [eapply IH; eauto | eapply cex_at_sound; eauto].
+  intros l r b c H Heq.
+  assert (Hn : find_cex l r b = None)
+    by (apply find_cex_spec; intros n _; apply pcmEQ_agree_at, Heq).
+  congruence.
 Qed.
 
 (** [refute n] proves [~ pcmEQ 1 l r] by finding a counterexample among the

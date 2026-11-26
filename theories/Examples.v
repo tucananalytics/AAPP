@@ -57,24 +57,32 @@ Definition Unrot : PPCm :=
 Definition Lastk (k : nat) : PPCm :=
   (pf (lt_ x0 (cnst k)) (lp x0) (kon k), lp (adD x1 (suB x0 (cnst k)))).
 
+(** keep the first element and the last k (a sliding window that pins the
+    first turn, e.g. a system prompt):
+    u n = if n < k + 1 then n else k + 1,
+    f n i = if i < 1 then 0 else i + (n - (k + 1)) *)
+Definition Pin (k : nat) : PPCm :=
+  (pf (lt_ x0 (cnst (S k))) (lp x0) (kon (S k)),
+   pf (lt_ x1 (cnst 1)) (kon 0) (lp (adD x1 (suB x0 (cnst (S k)))))).
+
 (** ** Arity-2 morphisms:  n = variable 0,  m = variable 1,  i = variable 2 *)
 
 (** append:  u n m = n + m,  f n m i = i   (flat encoding) *)
 Definition App : PPCm := (lp (adD x0 x1), lp x2).
 
-(** Lifting an arity-1 morphism to act on the first, resp. second, of two
-    inputs (the other input is discarded).  These are the morphisms
-    [m x id] projected, and are what is needed to state equations such as
+(** the two projections:  u n m = n, f n m i = i   and   u n m = m, f n m i = n + i *)
+Definition Fst : PPCm := (lp x0, lp x2).
+Definition Snd : PPCm := (lp x1, lp (adD x0 x2)).
+
+(** An arity-1 morphism acting on the first, resp. second, of two inputs (the
+    other input is discarded): the composite with a projection.  These are
+    what is needed to state equations such as
     [rev (xs ++ ys) = rev ys ++ rev xs]. *)
-Definition on_fst (m : PPCm) : PPCm :=
-  (shape m, psubst (pos m) (fun j => if j =? 1 then lp x2 else lp (vr j))).
+Definition on_fst (m : PPCm) : PPCm := comp1 2 m Fst.
+Definition on_snd (m : PPCm) : PPCm := comp1 2 m Snd.
 
-Definition on_snd (m : PPCm) : PPCm :=
-  (psubst (shape m) (fun j => if j =? 0 then lp x1 else lp (vr j)),
-   padd (lp x0) (psubst (pos m) (fun j => if j =? 0 then lp x1
-                                          else if j =? 1 then lp x2 else lp (vr j)))).
-
-#[export] Hint Unfold Rev Tail Butlast Head Last Take Drop Rot Unrot Lastk App on_fst on_snd : morphisms.
+#[export] Hint Unfold Rev Tail Butlast Head Last Take Drop Rot Unrot Lastk Pin App Fst Snd
+  on_fst on_snd : morphisms.
 
 (** ** Well-typedness and losslessness of the basic morphisms *)
 
@@ -88,7 +96,10 @@ Lemma Drop_range : forall m, in_range 1 (Drop m). Proof. containers. Qed.
 Lemma Rot_range : in_range 1 Rot.           Proof. containers. Qed.
 Lemma Unrot_range : in_range 1 Unrot.       Proof. containers. Qed.
 Lemma Lastk_range : forall k, in_range 1 (Lastk k). Proof. containers. Qed.
+Lemma Pin_range : forall k, in_range 1 (Pin k). Proof. containers. Qed.
 Lemma App_range : in_range 2 App.           Proof. containers. Qed.
+Lemma Fst_range : in_range 2 Fst.           Proof. containers. Qed.
+Lemma Snd_range : in_range 2 Snd.           Proof. containers. Qed.
 
 (** The reorderings are lossless (cartesian) ... *)
 Lemma Rev_lossless : lossless Rev.          Proof. containers. Qed.
@@ -105,6 +116,11 @@ Qed.
 Lemma Lastk_lossy : forall k, ~ lossless (Lastk k).
 Proof.
   intros k H. destruct (H (fun _ => S k)) as [Hs _]. unfold_morphism. arith.
+Qed.
+
+Lemma Pin_lossy : forall k, ~ lossless (Pin k).
+Proof.
+  intros k H. destruct (H (fun _ => S (S k))) as [Hs _]. unfold_morphism. arith.
 Qed.
 
 Lemma Take_lossy : forall m, ~ lossless (Take m).
@@ -199,6 +215,49 @@ Proof. containers. Qed.
       lastk k (lastk (k+1) h) = lastk k h *)
 Theorem lastk_lastk : forall k, pcmEQ 1 (comp1 1 (Lastk k) (Lastk (S k))) (Lastk k).
 Proof. containers. Qed.
+
+(** Three-way fan-out and fan-in: splitting a batch at [a] and at [a + c]
+    and re-assembling the three parts restores the original order,
+      take a b ++ (take c (drop a b) ++ drop (a + c) b) = b. *)
+Theorem split3_merge : forall a c,
+    pcmEQ 1 (comp2 1 App (Take a)
+                   (comp2 1 App (comp1 1 (Take c) (Drop a)) (Drop (a + c))))
+            idm.
+Proof. containers. Qed.
+
+(** *** A window that pins the first turn
+
+    Practical context windows keep the first turn (the system prompt) and
+    the most recent [k] turns.  The plain window loses the first turn as soon
+    as the history outgrows it; the search finds the smallest such history. *)
+Example head_lastk_cex : find_cex (comp1 1 Head (Lastk 2)) Head 4 = Some (PosCex 3 0).
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem head_lastk_refuted : ~ pcmEQ 1 (comp1 1 Head (Lastk 2)) Head.
+Proof. refute 4. Qed.
+
+(** The pinned window never loses it:  head (pin k h) = head h. *)
+Theorem head_pin : forall k, pcmEQ 1 (comp1 1 Head (Pin k)) Head.
+Proof. containers. Qed.
+
+(** It is idempotent, and nested pinned windows collapse to the tighter one. *)
+Theorem pin_idem : forall k, pcmEQ 1 (comp1 1 (Pin k) (Pin k)) (Pin k).
+Proof. containers. Qed.
+
+Theorem pin_pin : forall k, pcmEQ 1 (comp1 1 (Pin k) (Pin (S k))) (Pin k).
+Proof. containers. Qed.
+
+(** The sliding invariant holds for it as well:
+      pin k (h ++ t) = pin k (pin k h ++ t). *)
+Theorem pin_app : forall k,
+    pcmEQ 2 (comp1 2 (Pin k) App)
+            (comp1 2 (Pin k) (comp2 2 App (on_fst (Pin k)) (on_snd idm))).
+Proof. containers. Qed.
+
+(** It is a different adapter from the plain window of the same size, though
+    the two have the same shape map. *)
+Example pin_lastk_cex : find_cex (Lastk 3) (Pin 2) 6 = Some (PosCex 4 0).
+Proof. vm_compute. reflexivity. Qed.
 
 (** A tempting but *false* adapter law is refuted rather than proved:
     "dropping the oldest turn of a (k+1)-window gives a k-window" fails when
@@ -367,6 +426,23 @@ Section Transfer.
     intros k l; spec.
     - rewrite len_skipn; arith.
     - rewrite len_skipn in Hi. split; [lia |]. apply nth_skipn.
+  Qed.
+
+  Lemma Pin_spec : forall (k : nat) (l : list X),
+      RepEq (interp (Pin k) [of_list d l] d)
+            (of_list d (if length l <=? S k then l
+                        else firstn 1 l ++ skipn (length l - k) l)).
+  Proof.
+    intros k l. destruct (Nat.leb_spec (length l) (S k)) as [Hn | Hn]; spec.
+    - arith.
+    - destruct (le_lt_dec (1 - i) 0); (split; [lia |]); f_equal; lia.
+    - rewrite len_app, len_firstn, len_skipn. arith.
+    - rewrite len_app, len_firstn, len_skipn in Hi.
+      destruct (le_lt_dec (1 - i) 0); (split; [lia |]).
+      + rewrite app_nth2 by (rewrite len_firstn; lia).
+        rewrite len_firstn, nth_skipn. f_equal; lia.
+      + assert (Hi0 : i = 0) by lia. subst i.
+        rewrite app_nth1 by (rewrite len_firstn; lia). apply nth_firstn; lia.
   Qed.
 
   (** Rotation: the first element moves to the back ... *)

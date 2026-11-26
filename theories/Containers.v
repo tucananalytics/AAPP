@@ -26,15 +26,17 @@
         extension of the adapter, and this is functorial.
 
     The list container [(n : nat <| Fin n)] is then connected to the
-    non-dependent representation of [ListMorphisms].  A Presburger-definable
-    morphism that is in range determines a genuine container morphism
-    ([to_cmor]); its extension agrees with [interp]; composites of
-    representations represent composites of container morphisms; arithmetic
-    equality implies equality of container morphisms ([represents_cmorEq])
-    and hence of the runs of wrapped agents ([cmorEq_run]); and the
-    arithmetic losslessness condition implies cartesianness
-    ([lossless_cartesian]).  The last section treats binary trees and the
-    flattening morphism. *)
+    non-dependent representation of [ListMorphisms], for morphisms out of
+    one list and out of two.  A Presburger-definable morphism that is in
+    range determines a genuine container morphism ([to_cmor], [to_cmor2]);
+    its extension agrees with [interp]; composites of representations
+    represent composites and pairings of container morphisms; arithmetic
+    equality implies equality of container morphisms ([represents_cmorEq]),
+    and conversely for closed terms ([pcmEQ_iff_cmorEq]); equal morphisms
+    give every wrapped agent the same runs ([cmorEq_run]), and conversely
+    ([runs_cmorEq]); and the arithmetic losslessness condition implies
+    cartesianness ([lossless_cartesian]).  The last section treats binary
+    trees and the flattening morphism. *)
 
 From Coq Require Import Arith Lia List PeanoNat Compare_dec Peano_dec FinFun.
 From AAPP Require Import ListMorphisms.
@@ -185,6 +187,42 @@ Definition lift_all (C C' : Container) (m : CMor C C')
                    (fun p0 => Pos D (projT2 e p0))
                    (rho (g (projT1 e) p)) p (Hg (projT1 e) p)).
 
+(** ** Products and pairing
+
+    The product of two containers has a pair of shapes and, as positions,
+    the positions of either component; its extension is the product of the
+    two extensions, so a value is a pair of structures.  Read as interfaces:
+    emit a move of each, and accept a response to one of the two.  Pairing
+    two morphisms out of the same container gives a morphism into the
+    product; it is how a function of one argument that uses its argument
+    twice ([take m b ++ drop m b]) is expressed. *)
+
+Definition cProd (C D : Container) : Container :=
+  mkCont (fun s : Shape C * Shape D => (Pos C (fst s) + Pos D (snd s))%type).
+
+Definition cfst (C D : Container) : CMor (cProd C D) C :=
+  mkMor (cProd C D) C (fun s => fst s) (fun s p => inl p).
+
+Definition csnd (C D : Container) : CMor (cProd C D) D :=
+  mkMor (cProd C D) D (fun s => snd s) (fun s p => inr p).
+
+Definition cpair (C D1 D2 : Container) (m1 : CMor C D1) (m2 : CMor C D2)
+  : CMor C (cProd D1 D2) :=
+  mkMor C (cProd D1 D2)
+        (fun s => (u m1 s, u m2 s))
+        (fun s p => match p with
+                    | inl p1 => f m1 s p1
+                    | inr p2 => f m2 s p2
+                    end).
+
+Lemma cfst_cpair : forall C D1 D2 (m1 : CMor C D1) (m2 : CMor C D2),
+    ccomp (cfst D1 D2) (cpair m1 m2) = m1.
+Proof. intros C D1 D2 [u1 f1] m2. reflexivity. Qed.
+
+Lemma csnd_cpair : forall C D1 D2 (m1 : CMor C D1) (m2 : CMor C D2),
+    ccomp (csnd D1 D2) (cpair m1 m2) = m2.
+Proof. intros C D1 D2 m1 [u2 f2]. reflexivity. Qed.
+
 (** ** Containers as agent interfaces *)
 
 (** An agent with interface [I] and state [X]: from a state, a move together
@@ -249,6 +287,26 @@ Lemma wrap_ext_eq : forall I J X E (m m' : CMor I J) (a : Agent I X),
     (forall x, mmap m (a x) = mmap m' (a x)) ->
     forall (e : Env J E) x w n, run (wrap m a) e x w n = run (wrap m' a) e x w n.
 Proof. intros I J X E m m' a Hm. apply run_ext. exact Hm. Qed.
+
+(** The first one and two moves of a run. *)
+Lemma run_one : forall I X E (a : Agent I X) (e : Env I E) x w,
+    run a e x w 1 = [readout a x].
+Proof. intros. cbn [run]. destruct (e w (readout a x)) as [[p w'] |]; reflexivity. Qed.
+
+Lemma run_two : forall I X E (a : Agent I X) (e : Env I E) x w,
+    run a e x w 2 = readout a x :: match e w (readout a x) with
+                                    | Some (p, _) => [readout a (update a x p)]
+                                    | None => []
+                                    end.
+Proof.
+  intros.
+  change (run a e x w 2)
+    with (readout a x :: match e w (readout a x) with
+                         | Some (p, w') => run a e (update a x p) w' 1
+                         | None => []
+                         end).
+  destruct (e w (readout a x)) as [[p w'] |]; [rewrite run_one |]; reflexivity.
+Qed.
 
 (** An adapter also transports environments, in the opposite direction: an
     environment that serves interface [J] serves interface [I] through the
@@ -485,55 +543,390 @@ Theorem cmorEq_run_lifted : FunExt -> forall C (m m' : CMor C ListC),
       run (wrap (whisker m K) a) e x w n = run (wrap (whisker m' K) a) e x w n.
 Proof. intros FE C m m' H K X E a e x w n. rewrite (cmorEq_eq FE H). reflexivity. Qed.
 
-(** *** From arithmetic to container morphisms
+(** *** Observational completeness
 
-    A pair of piecewise-linear terms [t] *represents* a container morphism
-    [m] on lists when it computes the shape map of [m] and the indices of its
-    position maps. *)
-Definition represents (t : PPCm) (m : CMor ListC ListC) : Prop :=
-  forall n, u m n = pevl (shape t) (env1 n) /\
-            forall p : Fin (u m n),
-              proj1_sig (f m n p) = pevl (pos t) (ext (env1 n) 1 (proj1_sig p)).
+    The converse of [cmorEq_run]: adapters that no agent and no environment
+    can tell apart are equal.  It holds for every source container whose
+    positions have decidable equality and which has a shape with no
+    positions (the empty batch): if the position maps differ somewhere, an
+    agent that emits the empty shape when it receives one of the two answers,
+    and a non-empty one otherwise, produces different runs.  Stateless
+    environments already suffice. *)
 
-Lemma to_cmor_represents : forall (t : PPCm) (H : in_range 1 t), represents t (to_cmor H).
-Proof. intros t H n; split; [reflexivity | intros p; reflexivity]. Qed.
-
-Lemma cid_represents : represents idm (cid ListC).
-Proof. intros n; split; [reflexivity | intros p; reflexivity]. Qed.
-
-(** The arithmetic composite represents the composite of container morphisms. *)
-Lemma ccomp_represents : forall (l r : PPCm) (m m' : CMor ListC ListC),
-    represents l m -> represents r m' -> represents (comp1 1 l r) (ccomp m m').
+Theorem runs_cmorEq : forall C (m m' : CMor C ListC),
+    (forall s (p q : Pos C s), {p = q} + {p <> q}) ->
+    forall s0 : Shape C, (Pos C s0 -> False) ->
+    (forall X (a : Agent C X) (e : Env ListC unit) x n,
+        run (wrap m a) e x tt n = run (wrap m' a) e x tt n) ->
+    cmorEq m m'.
 Proof.
-  intros l r m m' Hm Hm' n.
-  destruct (Hm' n) as [Hu' Hf']. destruct (Hm (u m' n)) as [Hu Hf].
-  split.
-  - change (u m (u m' n) = pevl (shape (comp1 1 l r)) (env1 n)).
-    rewrite comp1_shape1, <- Hu'. exact Hu.
-  - intros p.
-    change (proj1_sig (f m' n (f m (u m' n) p))
-            = pevl (pos (comp1 1 l r)) (ext (env1 n) 1 (proj1_sig p))).
-    rewrite comp1_pos1, Hf', Hf, <- Hu'. reflexivity.
+  intros C m m' dec s0 Hs0 Hrun s.
+  assert (Hu : u m s = u m' s).
+  { pose proof (Hrun unit (fun _ => existT (fun s' => Pos C s' -> unit) s (fun _ => tt))
+                     (fun _ _ => None) tt 1) as H1.
+    rewrite !run_one in H1. exact (f_equal (fun l => nth 0 l 0) H1). }
+  split; [exact Hu |].
+  intros p q Hpq.
+  destruct (dec s (f m s p) (f m' s q)) as [E | NE]; [exact E | exfalso].
+  set (a := fun x : option (Pos C s) =>
+              match x with
+              | None => existT (fun s' => Pos C s' -> option (Pos C s)) s (fun r => Some r)
+              | Some r => existT (fun s' => Pos C s' -> option (Pos C s))
+                                 (if dec s r (f m s p) then s0 else s) (fun _ => Some r)
+              end).
+  set (e := fun (_ : unit) (k : nat) =>
+              match lt_dec (proj1_sig p) k with
+              | left H => Some (exist (fun i => i < k) (proj1_sig p) H, tt)
+              | right _ => None
+              end).
+  assert (Hstep : forall (mm : CMor C ListC) (pp : Fin (u mm s)),
+             proj1_sig pp = proj1_sig p ->
+             run (wrap mm a) e None tt 2
+             = [u mm s; u mm (if dec s (f mm s pp) (f m s p) then s0 else s)]).
+  { intros mm pp Hpp. rewrite run_two.
+    change (readout (wrap mm a) None) with (u mm s).
+    unfold e at 1. destruct (lt_dec (proj1_sig p) (u mm s)) as [H | H].
+    - replace (exist (fun i => i < u mm s) (proj1_sig p) H) with pp
+        by (apply Fin_eq; simpl; exact Hpp).
+      reflexivity.
+    - exfalso. apply H. rewrite <- Hpp. exact (proj2_sig pp). }
+  pose proof (Hrun (option (Pos C s)) a e None 2) as Hr.
+  rewrite (Hstep m p eq_refl), (Hstep m' q (eq_sym Hpq)) in Hr.
+  destruct (dec s (f m s p) (f m s p)) as [_ | Hn]; [| apply Hn; reflexivity].
+  destruct (dec s (f m' s q) (f m s p)) as [Hy | _]; [apply NE; symmetry; exact Hy |].
+  assert (H2 : u m s0 = u m' s) by exact (f_equal (fun l => nth 1 l 0) Hr).
+  assert (Hpos : 0 < u m s0).
+  { pose proof (proj2_sig p) as Hp. simpl in Hp. rewrite H2, <- Hu. lia. }
+  apply Hs0. exact (f m s0 (exist _ 0 Hpos)).
 Qed.
 
-(** Soundness: if the representing terms are equal in the arithmetic sense,
-    the container morphisms are equal. *)
-Theorem represents_cmorEq : forall (t t' : PPCm) (m m' : CMor ListC ListC),
-    represents t m -> represents t' m' -> pcmEQ 1 t t' -> cmorEq m m'.
+Lemma Fin_dec : forall n (p q : Fin n), {p = q} + {p <> q}.
 Proof.
-  intros t t' m m' Hm Hm' Heq n.
-  destruct (Hm n) as [Hu Hf]; destruct (Hm' n) as [Hu' Hf'];
-    destruct (Heq (env1 n)) as [Hs Hp].
+  intros n p q. destruct (Nat.eq_dec (proj1_sig p) (proj1_sig q)) as [E | NE].
+  - left. apply Fin_eq. exact E.
+  - right. intros H. apply NE. rewrite H. reflexivity.
+Qed.
+
+Lemma Fin0_empty : Fin 0 -> False.
+Proof. intros [i Hi]. lia. Qed.
+
+(** For adapters on the list interface, equality of container morphisms *is*
+    observational equivalence. *)
+Theorem list_adapters_iff_runs : forall m m' : CMor ListC ListC,
+    cmorEq m m' <->
+    (forall X E (a : Agent ListC X) (e : Env ListC E) x w n,
+        run (wrap m a) e x w n = run (wrap m' a) e x w n).
+Proof.
+  intros m m'. split.
+  - intros H X E a e x w n. apply cmorEq_run. exact H.
+  - intros H. apply (@runs_cmorEq ListC m m' Fin_dec 0 Fin0_empty).
+    intros X a e x n. apply H.
+Qed.
+
+(** *** From arithmetic to container morphisms
+
+    The arithmetic representation applies to morphisms from [k] lists to a
+    list.  A *source* packages what the representation needs to know about
+    the domain: the container, the arity [k], the environment that a shape
+    determines (the [k] lengths), and the flat numbering of its positions. *)
+
+Record Src := mkSrc {
+  SC : Container;
+  ar : nat;
+  en : Shape SC -> nat -> nat;
+  fl : forall s, Pos SC s -> nat;
+  en_vanishes : forall s, vanishes ar (en s);
+  en_onto : forall rho, vanishes ar rho -> exists s, forall j, en s j = rho j;
+  fl_inj : forall s (p q : Pos SC s), fl s p = fl s q -> p = q
+}.
+
+Arguments en S s j : rename.
+Arguments fl S s p : rename.
+
+(** One list. *)
+Lemma src1_onto : forall rho, vanishes 1 rho -> exists n : nat, forall j, env1 n j = rho j.
+Proof.
+  intros rho Hv. exists (rho 0). intros [| j]; [reflexivity | symmetry; apply Hv; lia].
+Qed.
+
+Definition src1 : Src :=
+  @mkSrc ListC 1 env1 (fun n (p : Fin n) => proj1_sig p)
+         vanishes_env1 src1_onto (fun n p q H => Fin_eq p q H).
+
+(** Two lists: the product of the list container with itself.  Positions are
+    numbered consecutively, those of the first list first. *)
+Definition List2C : Container := cProd ListC ListC.
+
+Definition flat_idx (s : nat * nat) (p : Pos List2C s) : nat :=
+  match p with
+  | inl i => proj1_sig i
+  | inr j => fst s + proj1_sig j
+  end.
+
+Arguments flat_idx s p : clear implicits.
+
+Lemma flat_idx_inj : forall s (p q : Pos List2C s), flat_idx s p = flat_idx s q -> p = q.
+Proof.
+  intros [n1 n2] [[i Hi] | [i Hi]] [[j Hj] | [j Hj]] H; simpl in *.
+  - f_equal. apply Fin_eq. exact H.
+  - exfalso. lia.
+  - exfalso. lia.
+  - f_equal. apply Fin_eq. simpl. lia.
+Qed.
+
+Lemma src2_onto : forall rho, vanishes 2 rho ->
+    exists s : nat * nat, forall j, env2 (fst s) (snd s) j = rho j.
+Proof.
+  intros rho Hv. exists (rho 0, rho 1).
+  intros [| [| j]]; [reflexivity | reflexivity | symmetry; apply Hv; lia].
+Qed.
+
+Definition src2 : Src :=
+  @mkSrc List2C 2 (fun s => env2 (fst s) (snd s)) flat_idx
+         (fun s => vanishes_env2 (fst s) (snd s)) src2_onto flat_idx_inj.
+
+(** A pair of piecewise-linear terms [t] *represents* a container morphism
+    [m] out of a source when it computes the shape map of [m] and the flat
+    index of every value of its position maps. *)
+Definition represents (S : Src) (t : PPCm) (m : CMor (SC S) ListC) : Prop :=
+  forall s, u m s = pevl (shape t) (en S s) /\
+            forall p : Fin (u m s),
+              fl S s (f m s p) = pevl (pos t) (ext (en S s) (ar S) (proj1_sig p)).
+
+Lemma to_cmor_represents : forall (t : PPCm) (H : in_range 1 t), represents src1 t (to_cmor H).
+Proof. intros t H n; split; [reflexivity | intros p; reflexivity]. Qed.
+
+Lemma cid_represents : represents src1 idm (cid ListC).
+Proof. intros n; split; [reflexivity | intros p; reflexivity]. Qed.
+
+(** A representation of arity 2 that is in range determines a container
+    morphism from two lists to a list. *)
+Lemma to_cmor2_bound : forall (m : PPCm) (H : in_range 2 m) (s : nat * nat)
+                              (i : Fin (pevl (shape m) (env2 (fst s) (snd s)))),
+    pevl (pos m) (ext (env2 (fst s) (snd s)) 2 (proj1_sig i)) < fst s + snd s.
+Proof.
+  intros m H [n1 n2] [i Hi]; simpl in *.
+  exact (H (env2 n1 n2) i Hi).
+Qed.
+
+Lemma split_pos_r : forall n1 n2 p, p < n1 + n2 -> ~ p < n1 -> p - n1 < n2.
+Proof. intros; lia. Qed.
+
+Definition split_pos (n1 n2 p : nat) (H : p < n1 + n2) : (Fin n1 + Fin n2)%type :=
+  match lt_dec p n1 with
+  | left H1 => inl (exist _ p H1)
+  | right H1 => inr (exist _ (p - n1) (@split_pos_r n1 n2 p H H1))
+  end.
+
+Arguments split_pos n1 n2 p H : clear implicits.
+
+Lemma flat_split : forall n1 n2 p (H : p < n1 + n2),
+    flat_idx (n1, n2) (split_pos n1 n2 p H) = p.
+Proof.
+  intros n1 n2 p H. unfold split_pos. destruct (lt_dec p n1); simpl; lia.
+Qed.
+
+Definition to_cmor2 (m : PPCm) (H : in_range 2 m) : CMor List2C ListC :=
+  mkMor List2C ListC
+        (fun s => pevl (shape m) (env2 (fst s) (snd s)))
+        (fun s i => split_pos (fst s) (snd s) _ (@to_cmor2_bound m H s i)).
+
+Lemma to_cmor2_represents : forall (t : PPCm) (H : in_range 2 t), represents src2 t (to_cmor2 H).
+Proof. intros t H [n1 n2]; split; [reflexivity | intros p; apply flat_split]. Qed.
+
+(** Observational completeness holds for adapters out of a pair of lists as
+    well. *)
+Lemma List2_dec : forall s (p q : Pos List2C s), {p = q} + {p <> q}.
+Proof.
+  intros s p q. destruct (Nat.eq_dec (flat_idx s p) (flat_idx s q)) as [E | NE].
+  - left. apply flat_idx_inj. exact E.
+  - right. intros H. apply NE. rewrite H. reflexivity.
+Qed.
+
+Lemma List2_empty : Pos List2C (0, 0) -> False.
+Proof. intros [p | p]; exact (Fin0_empty p). Qed.
+
+Theorem list2_adapters_iff_runs : forall m m' : CMor List2C ListC,
+    cmorEq m m' <->
+    (forall X E (a : Agent List2C X) (e : Env ListC E) x w n,
+        run (wrap m a) e x w n = run (wrap m' a) e x w n).
+Proof.
+  intros m m'. split.
+  - intros H X E a e x w n. apply cmorEq_run. exact H.
+  - intros H. apply (@runs_cmorEq List2C m m' List2_dec (0, 0) List2_empty).
+    intros X a e x n. apply H.
+Qed.
+
+(** Its extension agrees with the arithmetic interpretation on the two lists
+    obtained from a pair by the projections. *)
+Theorem to_cmor2_interp : forall (m : PPCm) (H : in_range 2 m) X (d : X) (e : Ext List2C X),
+    RepEq (ext_to_rep d (mmap (to_cmor2 H) e))
+          (interp m [ext_to_rep d (mmap (cfst ListC ListC) e);
+                     ext_to_rep d (mmap (csnd ListC ListC) e)] d).
+Proof.
+  intros m H X d [[n1 n2] g].
+  set (e := existT (fun s => Pos List2C s -> X) (n1, n2) g).
+  set (r1 := ext_to_rep d (mmap (cfst ListC ListC) e)).
+  set (r2 := ext_to_rep d (mmap (csnd ListC ListC) e)).
+  assert (He : forall j, env [r1; r2] j = env2 n1 n2 j) by (intros j; apply env_pair).
+  assert (Hs : pevl (shape m) (env [r1; r2]) = pevl (shape m) (env2 n1 n2))
+    by (apply pevl_ext; exact He).
+  assert (Hp : forall i, pevl (pos m) (ext (env [r1; r2]) 2 i)
+                         = pevl (pos m) (ext (env2 n1 n2) 2 i)).
+  { intros i. apply pevl_ext; intros j. unfold ext. destruct (j =? 2); auto. }
+  (* the value stored at a flat position of the pair *)
+  assert (Hg : forall p (Hlt : p < n1 + n2),
+             g (split_pos n1 n2 p Hlt) = flat [r1; r2] d p).
+  { intros p Hlt. unfold split_pos. cbn [flat r1 r2 ext_to_rep mmap e cfst csnd u f projT1 projT2 fst snd].
+    destruct (lt_dec p n1) as [H1 | H1].
+    - destruct (Nat.ltb_spec p n1); [| exfalso; lia].
+      destruct (le_lt_dec n1 p) as [Hle | Hlt']; [exfalso; lia |].
+      rewrite (le_unique _ _ H1 Hlt'). reflexivity.
+    - destruct (Nat.ltb_spec p n1); [exfalso; lia |].
+      destruct (Nat.ltb_spec (p - n1) n2); [| exfalso; lia].
+      destruct (le_lt_dec n2 (p - n1)) as [Hle | Hlt']; [exfalso; lia |].
+      rewrite (le_unique _ _ (@split_pos_r n1 n2 p Hlt H1) Hlt'). reflexivity. }
+  split.
+  - symmetry. exact Hs.
+  - intros i Hi.
+    change (snd (interp m [r1; r2] d) i) with (flat [r1; r2] d (pevl (pos m) (ext (env [r1; r2]) 2 i))).
+    rewrite Hp.
+    change (fst (ext_to_rep d (mmap (to_cmor2 H) e))) with (pevl (shape m) (env2 n1 n2)) in Hi.
+    cbn [ext_to_rep snd mmap e projT1 projT2].
+    destruct (le_lt_dec (u (to_cmor2 H) (n1, n2)) i) as [Hle | Hlt].
+    + exfalso. change (u (to_cmor2 H) (n1, n2)) with (pevl (shape m) (env2 n1 n2)) in Hle. lia.
+    + apply Hg.
+Qed.
+
+(** The arithmetic composite represents the composite of container
+    morphisms ... *)
+Lemma comp1_represents : forall (S : Src) (l r : PPCm)
+                                (m : CMor ListC ListC) (m' : CMor (SC S) ListC),
+    represents src1 l m -> represents S r m' ->
+    represents S (comp1 (ar S) l r) (ccomp m m').
+Proof.
+  intros S l r m m' Hm Hm' s.
+  destruct (Hm' s) as [Hu' Hf']. destruct (Hm (u m' s)) as [Hu Hf].
+  split.
+  - change (u m (u m' s) = pevl (shape (comp1 (ar S) l r)) (en S s)).
+    rewrite comp1_shape_gen by apply en_vanishes. rewrite <- Hu'. exact Hu.
+  - intros p.
+    change (fl S s (f m' s (f m (u m' s) p))
+            = pevl (pos (comp1 (ar S) l r)) (ext (en S s) (ar S) (proj1_sig p))).
+    rewrite comp1_pos_gen by apply en_vanishes. rewrite Hf', <- Hu'.
+    f_equal. f_equal. exact (Hf p).
+Qed.
+
+(** ... and the composite of an arity-2 term with two terms over the same
+    inputs represents composition with the pairing of the two morphisms. *)
+Lemma comp2_represents : forall (S : Src) (l r1 r2 : PPCm)
+                                (m : CMor List2C ListC) (m1 m2 : CMor (SC S) ListC),
+    represents src2 l m -> represents S r1 m1 -> represents S r2 m2 ->
+    represents S (comp2 (ar S) l r1 r2) (ccomp m (cpair m1 m2)).
+Proof.
+  intros S l r1 r2 m m1 m2 Hm H1 H2 s.
+  destruct (H1 s) as [Hu1 Hf1]. destruct (H2 s) as [Hu2 Hf2].
+  destruct (Hm (u m1 s, u m2 s)) as [Hu Hf].
+  split.
+  - change (u m (u m1 s, u m2 s) = pevl (shape (comp2 (ar S) l r1 r2)) (en S s)).
+    rewrite comp2_shape_gen by apply en_vanishes. rewrite <- Hu1, <- Hu2. exact Hu.
+  - intros p.
+    change (fl S s (f (cpair m1 m2) s (f m (u m1 s, u m2 s) p))
+            = pevl (pos (comp2 (ar S) l r1 r2)) (ext (en S s) (ar S) (proj1_sig p))).
+    rewrite comp2_pos_gen by apply en_vanishes. rewrite <- Hu1, <- Hu2.
+    pose proof (Hf p) as Hq.
+    change (flat_idx (u m1 s, u m2 s) (f m (u m1 s, u m2 s) p)
+            = pevl (pos l) (ext (env2 (u m1 s) (u m2 s)) 2 (proj1_sig p))) in Hq.
+    rewrite <- Hq.
+    destruct (f m (u m1 s, u m2 s) p) as [p1 | p2]; cbn [flat_idx fst snd cpair f].
+    + pose proof (proj2_sig p1) as Hlt. cbn [fst] in Hlt.
+      match goal with |- context [?a <? ?b] => destruct (Nat.ltb_spec a b) end;
+        [apply Hf1 | exfalso; lia].
+    + match goal with |- context [?a <? ?b] => destruct (Nat.ltb_spec a b) end;
+        [exfalso; lia |].
+      match goal with |- context [u m1 s + ?x - u m1 s] =>
+        replace (u m1 s + x - u m1 s) with x by lia end.
+      apply Hf2.
+Qed.
+
+(** Soundness: if the representing terms are equal in the arithmetic sense
+    (on the environments of the source), the container morphisms are equal. *)
+Theorem represents_cmorEq : forall (S : Src) (t t' : PPCm) (m m' : CMor (SC S) ListC),
+    represents S t m -> represents S t' m' -> pcmEQ_on (ar S) t t' -> cmorEq m m'.
+Proof.
+  intros S t t' m m' Hm Hm' Heq s.
+  destruct (Hm s) as [Hu Hf]; destruct (Hm' s) as [Hu' Hf'].
+  destruct (Heq (en S s) (en_vanishes S s)) as [Hs Hp].
   split; [congruence |].
-  intros p q Hpq. apply Fin_eq. rewrite Hf, Hf', <- Hpq. apply Hp.
+  intros p q Hpq. apply (fl_inj S). rewrite Hf, Hf', <- Hpq. apply Hp.
   rewrite <- Hu. exact (proj2_sig p).
+Qed.
+
+(** Exactness: conversely, equal container morphisms have representing terms
+    that are equal on the environments of the source ... *)
+Theorem cmorEq_pcmEQ_on : forall (S : Src) (t t' : PPCm) (m m' : CMor (SC S) ListC),
+    represents S t m -> represents S t' m' -> cmorEq m m' -> pcmEQ_on (ar S) t t'.
+Proof.
+  intros S t t' m m' Hm Hm' Heq rho Hv.
+  destruct (en_onto S Hv) as [s Hs].
+  assert (E1 : forall p, pevl p rho = pevl p (en S s))
+    by (intros p; apply pevl_ext; intros j; symmetry; apply Hs).
+  assert (E2 : forall p i, pevl p (ext rho (ar S) i) = pevl p (ext (en S s) (ar S) i)).
+  { intros p i. apply pevl_ext; intros j. unfold ext. destruct (j =? ar S); auto. }
+  destruct (Hm s) as [Hu Hf]; destruct (Hm' s) as [Hu' Hf']; destruct (Heq s) as [Huu Hff].
+  rewrite !E1. split; [congruence |].
+  intros i Hi. rewrite !E2.
+  assert (Hi1 : i < u m s) by (rewrite Hu; exact Hi).
+  assert (Hi2 : i < u m' s) by (rewrite <- Huu; exact Hi1).
+  pose proof (Hf (exist _ i Hi1)) as A. pose proof (Hf' (exist _ i Hi2)) as B.
+  simpl in A, B. rewrite <- A, <- B. f_equal. apply Hff. reflexivity.
+Qed.
+
+(** ... so for closed terms the arithmetic statement [pcmEQ] is *equivalent*
+    to equality of the container morphisms. *)
+Theorem pcmEQ_iff_cmorEq : forall (S : Src) (t t' : PPCm) (m m' : CMor (SC S) ListC),
+    represents S t m -> represents S t' m' ->
+    closed (ar S) t = true -> closed (ar S) t' = true ->
+    (pcmEQ (ar S) t t' <-> cmorEq m m').
+Proof.
+  intros S t t' m m' Hm Hm' Hc Hc'. split.
+  - intros H. apply (represents_cmorEq Hm Hm'). apply pcmEQ_pcmEQ_on. exact H.
+  - intros H. apply pcmEQ_on_pcmEQ; auto. apply (cmorEq_pcmEQ_on Hm Hm' H).
+Qed.
+
+(** A counterexample found by the bounded search is a genuine inequality of
+    container morphisms. *)
+Theorem find_cex_cmor : forall (l r : PPCm) (m m' : CMor ListC ListC) b c,
+    represents src1 l m -> represents src1 r m' ->
+    find_cex l r b = Some c -> ~ cmorEq m m'.
+Proof.
+  intros l r m m' b c Hm Hm' Hc Heq.
+  assert (Hn : find_cex l r b = None).
+  { apply find_cex_spec. intros n _.
+    exact (cmorEq_pcmEQ_on Hm Hm' Heq (vanishes_env1 n)). }
+  congruence.
 Qed.
 
 Corollary pcmEQ_cmorEq : forall (l r : PPCm) (Hl : in_range 1 l) (Hr : in_range 1 r),
     pcmEQ 1 l r -> cmorEq (to_cmor Hl) (to_cmor Hr).
 Proof.
   intros l r Hl Hr Heq.
-  exact (represents_cmorEq (to_cmor_represents Hl) (to_cmor_represents Hr) Heq).
+  exact (represents_cmorEq (to_cmor_represents Hl) (to_cmor_represents Hr)
+                           (pcmEQ_pcmEQ_on Heq)).
+Qed.
+
+(** Taken together: for closed, well-typed representations of arity 1 the
+    statement proved by the tactic [containers] is equivalent to the
+    observational equivalence of the two adapters. *)
+Theorem pcmEQ_iff_runs : forall (l r : PPCm) (Hl : in_range 1 l) (Hr : in_range 1 r),
+    closed 1 l = true -> closed 1 r = true ->
+    (pcmEQ 1 l r <->
+     forall X E (a : Agent ListC X) (e : Env ListC E) x w n,
+       run (wrap (to_cmor Hl) a) e x w n = run (wrap (to_cmor Hr) a) e x w n).
+Proof.
+  intros l r Hl Hr Hc Hc'.
+  rewrite (pcmEQ_iff_cmorEq (S := src1) (to_cmor_represents Hl) (to_cmor_represents Hr) Hc Hc').
+  apply list_adapters_iff_runs.
 Qed.
 
 (** Hence an arithmetic equality between well-typed morphisms yields equal
@@ -785,3 +1178,51 @@ Qed.
     every slot of the batch, every leaf of the plan receives its result. *)
 Definition flatten_all (K : Container) : CMor (cAll TreeC K) (cAll ListC K) :=
   lift_all flatten unflat_pos index_flat_pos K.
+
+(** ** Observational completeness needs an empty shape
+
+    The two adapters that present a plan as a batch of one item -- its
+    leftmost leaf, respectively its rightmost leaf -- are different container
+    morphisms, yet no agent and no environment can tell them apart by the
+    moves that cross the interface: every run through either of them is a
+    sequence of ones.  The tree container has no shape without positions, so
+    the hypothesis of [runs_cmorEq] fails for it, and so does its conclusion. *)
+
+Fixpoint leftmost (s : TreeS) : TreeP s :=
+  match s return TreeP s with
+  | leaf => tt
+  | node l r => inl (leftmost l)
+  end.
+
+Fixpoint rightmost (s : TreeS) : TreeP s :=
+  match s return TreeP s with
+  | leaf => tt
+  | node l r => inr (rightmost r)
+  end.
+
+Definition pick_left : CMor TreeC ListC :=
+  mkMor TreeC ListC (fun _ => 1) (fun s _ => leftmost s).
+
+Definition pick_right : CMor TreeC ListC :=
+  mkMor TreeC ListC (fun _ => 1) (fun s _ => rightmost s).
+
+Lemma pick_runs : forall X E (a : Agent TreeC X) (e : Env ListC E) n x x' w,
+    run (wrap pick_left a) e x w n = run (wrap pick_right a) e x' w n.
+Proof.
+  intros X E a e. induction n as [| n IH]; intros x x' w; [reflexivity |].
+  cbn [run].
+  change (readout (wrap pick_left a) x) with 1.
+  change (readout (wrap pick_right a) x') with 1.
+  destruct (e w 1) as [[p w'] |]; [f_equal; apply IH | reflexivity].
+Qed.
+
+Theorem pick_same_runs : forall X E (a : Agent TreeC X) (e : Env ListC E) x w n,
+    run (wrap pick_left a) e x w n = run (wrap pick_right a) e x w n.
+Proof. intros. apply pick_runs. Qed.
+
+Theorem pick_differ : ~ cmorEq pick_left pick_right.
+Proof.
+  intros H. destruct (H (node leaf leaf)) as [_ Hf].
+  assert (H1 : 0 < 1) by lia.
+  specialize (Hf (exist _ 0 H1) (exist _ 0 H1) eq_refl). discriminate Hf.
+Qed.
