@@ -1,0 +1,66 @@
+% Macros for the article
+%   "Arithmetic Analysis of Polymorphic Programs and the Verification of
+%    Typed Agent Interfaces"
+% Kept in a separate package, as the Fundamenta Informaticae guide for authors
+% asks, so that the journal class fundam.cls is used unmodified.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{aappmacros}[2026/11/26 macros for the AAPP article]
+\RequirePackage{amssymb}
+\RequirePackage{listings}
+\RequirePackage{xcolor}
+
+% --- typewriter font --------------------------------------------------------
+% The class selects cmtt.  With T1 encoding that is the EC typewriter font,
+% which is embedded as a bitmap where the cm-super fonts are not installed;
+% Latin Modern Typewriter is the same design in outline form.
+\IfFileExists{t1lmtt.fd}{\renewcommand{\ttdefault}{lmtt}}{}
+
+% --- notation --------------------------------------------------------------
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Fin}{\mathit{Fin}}
+\newcommand{\List}{\mathit{List}}
+\newcommand{\Set}{\mathbf{Set}}
+\newcommand{\Cont}{\mathbf{Cont}}
+\newcommand{\Poly}{\mathbf{Poly}}
+\newcommand{\cont}[2]{(#1 \triangleleft #2)}
+\newcommand{\ext}[1]{T_{#1}}
+\newcommand{\jmeq}{\mathrel{\stackrel{\mathit{jm}}{=}}}
+\newcommand{\eqmor}{\mathrel{\stackrel{\mathit{eqmor}}{=}}}
+\newcommand{\monus}{\mathbin{\dot{-}}}
+\newcommand{\coq}[1]{\texttt{#1}}
+\newcommand{\fn}[1]{\ensuremath{\mathit{#1}}}
+\newcommand{\rev}{\ensuremath{\mathit{rev}}}
+\newcommand{\app}{\ensuremath{\mathbin{+\!\!+}}}
+\newcommand{\lens}{\Rightarrow}
+\newcommand{\mmap}{\fn{mmap}}
+\newcommand{\reduce}{\fn{reduce}}
+\newcommand{\lastk}{\ensuremath{\mathit{last}_k}}
+\newcommand{\pink}{\ensuremath{\mathit{pin}_k}}
+
+% --- Coq listings ----------------------------------------------------------
+\lstdefinelanguage{Coq}{
+  morekeywords={Inductive,Fixpoint,Definition,Lemma,Theorem,Proof,Qed,match,with,end,fun,
+    forall,return,in,if,then,else,let,Ltac,Set,Prop,Type,Record,nat,Corollary,exists},
+  sensitive=true,
+  morecomment=[s]{(*}{*)},
+  morestring=[b]",
+}
+\lstset{language=Coq,basicstyle=\small\ttfamily,keywordstyle=\bfseries,
+  commentstyle=\itshape\color{black!60},columns=fullflexible,keepspaces=true,
+  frame=none,xleftmargin=1em,breaklines=true,showstringspaces=false}
+
+% --- one theorem-like environment that the class does not provide ----------
+\newtheorem{observation}[definition]{Observation}
+
+% --- ACM subject classification, set like the class's keywords -------------
+\newenvironment{acmclass}{%
+  \list{}{\advance\topsep by0.35cm\relax\small\rm
+    \leftmargin=1cm
+    \labelwidth=\z@
+    \listparindent=\z@
+    \itemindent\listparindent
+    \rightmargin\leftmargin}%
+  \item[\hskip\labelsep\bf ACM Subject Classification: ]}{\endlist}
+
+\endinput
